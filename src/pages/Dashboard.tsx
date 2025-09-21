@@ -245,7 +245,8 @@ export default function Dashboard() {
           numHeadlines,
           numDescriptions,
           model,
-          softLimitClamp
+          softLimitClamp,
+          locale: 'en-GB' // Default to UK English for better ad copy
         }
       });
 
@@ -490,21 +491,20 @@ export default function Dashboard() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>LLM Model</Label>
+                  <Label>AI Model</Label>
                   <Select value={model} onValueChange={setModel}>
                     <SelectTrigger><SelectValue placeholder="Select a model" /></SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
-                        <SelectLabel>OpenAI</SelectLabel>
-                        <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-                        <SelectItem value="gpt-4.1">GPT-4.1</SelectItem>
-                        <SelectLabel className="mt-2">Anthropic</SelectLabel>
-                        <SelectItem value="claude-3.5-sonnet">Claude 3.5 Sonnet</SelectItem>
+                        <SelectLabel>OpenAI (Recommended)</SelectLabel>
+                        <SelectItem value="gpt-4o">GPT-4o - Fast & Efficient</SelectItem>
+                        <SelectItem value="gpt-4.1">GPT-4.1 - Most Capable</SelectItem>
                         <SelectLabel className="mt-2">Google</SelectLabel>
                         <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro</SelectItem>
                       </SelectGroup>
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">OpenAI models generally provide better ad copy quality.</p>
                 </div>
 
                 <div className="flex items-center justify-between rounded-lg border p-3">
@@ -784,10 +784,10 @@ export default function Dashboard() {
           <Card>
             <CardContent className="py-4 text-xs text-muted-foreground">
               <p>
-                <strong>🚀 AI Integration Active:</strong> This tool now uses secure OpenAI and Gemini APIs with rate limiting (50 requests/day per user). Models available: <code>gpt-4o</code>, <code>gpt-4.1</code>, <code>claude-3.5-sonnet</code>, <code>gemini-1.5-pro</code>. Authentication required.
+                <strong>🚀 Enhanced AI System Active:</strong> Advanced prompt engineering with OpenAI GPT-4o/4.1 and Google Gemini 1.5 Pro. Features deduplication, variety optimization, UK English spelling, and professional RSA compliance validation.
               </p>
               <p>
-                <strong>Security features:</strong> JWT authentication, rate limiting, input validation, and request logging. All API keys are securely stored in Supabase Edge Function secrets.
+                <strong>Security & Performance:</strong> JWT authentication, 50 req/day rate limiting, structured JSON responses, automatic character limit enforcement, and comprehensive error handling. All API keys secured in Supabase Edge Functions.
               </p>
             </CardContent>
           </Card>

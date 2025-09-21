@@ -7,20 +7,198 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Helper function to soft clamp text without cutting words hard
-const softClamp = (text: string, limit: number) => {
-  if (text.length <= limit) return text;
-  const slice = text.slice(0, limit);
-  const lastSpace = slice.lastIndexOf(" ");
-  return (lastSpace > 10 ? slice.slice(0, lastSpace) : slice).trim();
+// Types
+interface RequestShape {
+  provider: "openai" | "google";
+  model: string;
+  existing_headlines: string[];
+  existing_descriptions: string[];
+  keywords_raw: string;
+  context: string;
+  num_headlines: number;
+  num_descriptions: number;
+  locale?: string;
+}
+
+// System prompt for all providers
+const SYSTEM_PROMPT = `You are a senior performance marketing copywriter specialising in Google Ads Responsive Search Ads (RSA). You:
+- Optimise for CTR and CVR while preserving brand safety and compliance.
+- Always meet RSA character specs: headlines ≤ 30 characters; descriptions ≤ 90 characters.
+- Write clear, scannable, benefit-led language; avoid fluff, emojis, and excessive punctuation.
+- Naturally incorporate provided keywords/search queries where relevant. Do NOT keyword-stuff.
+- Produce unique lines with meaningful variance (benefits, features, proof, offer, urgency, CTA, social proof, objection handling). No duplicates or near-duplicates.
+- Follow the provided locale (default en-GB) for spelling and punctuation.
+- Do not include your reasoning or commentary in the output — output JSON only.`;
+
+// User prompt template
+const buildUserPrompt = (req: RequestShape) => {
+  const existingHeadlinesText = req.existing_headlines.length > 0 
+    ? req.existing_headlines.map(h => `- ${h}`).join('\n') 
+    : 'None provided';
+  
+  const existingDescriptionsText = req.existing_descriptions.length > 0 
+    ? req.existing_descriptions.map(d => `- ${d}`).join('\n') 
+    : 'None provided';
+
+  return `CONTEXT
+------
+Brand/Campaign Notes:
+${req.context || 'General business promotion'}
+
+Existing Headlines (for reference):
+${existingHeadlinesText}
+
+Existing Descriptions (for reference):
+${existingDescriptionsText}
+
+Keywords & Search Queries (raw):
+${req.keywords_raw || 'None provided'}
+
+Locale: ${req.locale || 'en-GB'}
+
+TASK
+----
+Create:
+- ${req.num_headlines} Google Ads RSA headlines (each ≤ 30 characters)
+- ${req.num_descriptions} Google Ads RSA descriptions (each ≤ 90 characters)
+
+REQUIREMENTS
+------------
+1) **Character limits are hard caps**: headlines ≤ 30; descriptions ≤ 90. Do not exceed.
+2) **Coverage & Variety**: Provide a balanced mix across intent buckets. Include at least some lines that emphasise:
+   - Core benefit/value (e.g., save money/time, quality, reliability)
+   - Specific features/USPs from the context
+   - Social proof or credibility (ratings, awards, scale)
+   - Offer/price/promo (if in context)
+   - Urgency/scarcity when appropriate (no fake claims)
+   - Clear CTA variants (e.g., "Get Quote", "Compare Now")
+3) **Keyword use**: Naturally include relevant head terms from the supplied keywords/search queries where they fit. Avoid awkward stuffing.
+4) **Compliance & Safety**: Avoid prohibited claims, exaggerated superlatives, or medical/financial guarantees unless explicitly allowed. No emojis.
+5) **Uniqueness**: No duplicates or near-duplicates; each line must deliver a distinct angle.
+6) **Grammar & Casing**: Concise sentence or Title Case; avoid ALL CAPS & multiple exclamation marks.
+
+OUTPUT FORMAT (JSON ONLY)
+-------------------------
+{
+  "headlines": [
+    "H1 (≤30 chars)",
+    "H2 (≤30 chars)",
+    "... up to ${req.num_headlines}"
+  ],
+  "descriptions": [
+    "D1 (≤90 chars)",
+    "D2 (≤90 chars)",
+    "... up to ${req.num_descriptions}"
+  ]
+}
+
+QUALITY CHECK (self-verify before answering)
+--------------------------------------------
+- Arrays match requested counts.
+- No item exceeds the char limits.
+- No duplicates/near-duplicates.
+- At least some items include key head terms naturally.`;
 };
 
-// OpenAI API call
-const generateWithOpenAI = async (prompt: string, model: string, maxTokens: number) => {
+// Pre-processing helpers
+const preprocess = (rawReq: any): RequestShape => {
+  const trimLines = (arr: string[]) => (arr || []).map(s => s.trim()).filter(Boolean);
+  const dedupe = (arr: string[]) => Array.from(new Set(arr));
+  const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+
+  // Convert old format to new format
+  const existing_headlines = rawReq.existingHeadlines 
+    ? rawReq.existingHeadlines.split('\n')
+    : (rawReq.existing_headlines || []);
+  
+  const existing_descriptions = rawReq.existingDescriptions 
+    ? rawReq.existingDescriptions.split('\n')
+    : (rawReq.existing_descriptions || []);
+
+  return {
+    provider: rawReq.model?.includes('gemini') ? 'google' : 'openai',
+    model: rawReq.model || 'gpt-4o',
+    existing_headlines: dedupe(trimLines(existing_headlines)),
+    existing_descriptions: dedupe(trimLines(existing_descriptions)),
+    keywords_raw: rawReq.keywords || rawReq.keywords_raw || '',
+    context: rawReq.context || '',
+    num_headlines: clamp(rawReq.numHeadlines || rawReq.num_headlines || 10, 1, 30),
+    num_descriptions: clamp(rawReq.numDescriptions || rawReq.num_descriptions || 4, 1, 30),
+    locale: rawReq.locale || 'en-GB'
+  };
+};
+
+// Simple similarity function for deduplication
+const similarity = (a: string, b: string): number => {
+  const setA = new Set(a.toLowerCase().split(''));
+  const setB = new Set(b.toLowerCase().split(''));
+  const intersection = [...setA].filter(x => setB.has(x)).length;
+  return intersection / Math.max(setA.size, setB.size);
+};
+
+// Post-processing helpers
+const postprocess = (data: any, cleaned: RequestShape) => {
+  const enforce = (items: string[], maxChars: number, need: number) => {
+    const softTrim = (s: string) => {
+      if (s.length <= maxChars) return s;
+      const slice = s.slice(0, maxChars);
+      const lastSpace = slice.lastIndexOf(' ');
+      return (lastSpace > 10 ? slice.slice(0, lastSpace) : slice).trim();
+    };
+    
+    const unique: string[] = [];
+    for (const s of items || []) {
+      const t = softTrim(String(s || "").trim());
+      if (!t) continue;
+      if (!unique.some(u => similarity(u, t) > 0.92)) {
+        unique.push(t);
+      }
+    }
+    return unique.slice(0, need);
+  };
+
+  let headlines = enforce(data?.headlines || [], 30, cleaned.num_headlines);
+  let descriptions = enforce(data?.descriptions || [], 90, cleaned.num_descriptions);
+
+  // Pad if short with basic fallbacks
+  const pad = (arr: string[], need: number, prefix: string) => {
+    while (arr.length < need) {
+      arr.push(`${prefix} ${arr.length + 1}`);
+    }
+    return arr;
+  };
+
+  headlines = pad(headlines, cleaned.num_headlines, "Headline");
+  descriptions = pad(descriptions, cleaned.num_descriptions, "Description");
+
+  // Locale normalisation for en-GB
+  if ((cleaned.locale || '').toLowerCase() === 'en-gb') {
+    const gbSpelling = (s: string) => s.replace(/optimi(ze|zing|zation)/gi, m => m.replace('z', 's'));
+    headlines = headlines.map(gbSpelling);
+    descriptions = descriptions.map(gbSpelling);
+  }
+
+  return { headlines, descriptions };
+};
+
+const safeJsonParse = (s: string) => {
+  try { 
+    return JSON.parse(s); 
+  } catch { 
+    return {}; 
+  }
+};
+
+// OpenAI API call with improved prompt structure
+const generateWithOpenAI = async (req: RequestShape) => {
   const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
   if (!openAIApiKey) {
     throw new Error('OpenAI API key not configured');
   }
+
+  const userPrompt = buildUserPrompt(req);
+  console.log('OpenAI Model:', req.model);
+  console.log('User prompt length:', userPrompt.length);
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -29,47 +207,48 @@ const generateWithOpenAI = async (prompt: string, model: string, maxTokens: numb
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: model,
+      model: req.model,
       messages: [
         {
           role: 'system',
-          content: `You are an expert Google Ads copywriter specializing in RSA (Responsive Search Ads). 
-          Create compelling, compliant ad copy that:
-          - Headlines: Max 30 characters, include keywords naturally
-          - Descriptions: Max 90 characters, focus on benefits and CTAs
-          - Use action words and emotional triggers
-          - Ensure variety in messaging and angles
-          - Follow Google Ads policies
-          - Return ONLY the requested ad copy as JSON arrays`
+          content: SYSTEM_PROMPT
         },
         {
           role: 'user',
-          content: prompt
+          content: userPrompt
         }
       ],
-      max_tokens: maxTokens,
-      temperature: 0.7,
+      temperature: 0.8,
+      max_tokens: 2000,
+      response_format: { type: "json_object" }
     }),
   });
 
   if (!response.ok) {
     const error = await response.text();
     console.error('OpenAI API error:', error);
-    throw new Error(`OpenAI API error: ${response.status}`);
+    throw new Error(`OpenAI API error: ${response.status} - ${error}`);
   }
 
   const data = await response.json();
-  return data.choices[0].message.content;
+  const rawContent = data.choices?.[0]?.message?.content ?? "{}";
+  console.log('OpenAI raw response:', rawContent);
+  
+  return safeJsonParse(rawContent);
 };
 
-// Gemini API call
-const generateWithGemini = async (prompt: string, maxTokens: number) => {
+// Gemini API call with improved prompt structure
+const generateWithGemini = async (req: RequestShape) => {
   const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
   if (!geminiApiKey) {
     throw new Error('Gemini API key not configured');
   }
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${geminiApiKey}`, {
+  const userPrompt = buildUserPrompt(req);
+  console.log('Gemini Model:', req.model);
+  console.log('User prompt length:', userPrompt.length);
+
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${req.model}:generateContent?key=${geminiApiKey}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -77,33 +256,46 @@ const generateWithGemini = async (prompt: string, maxTokens: number) => {
     body: JSON.stringify({
       contents: [{
         parts: [{
-          text: `You are an expert Google Ads copywriter specializing in RSA (Responsive Search Ads). 
-          Create compelling, compliant ad copy that:
-          - Headlines: Max 30 characters, include keywords naturally
-          - Descriptions: Max 90 characters, focus on benefits and CTAs
-          - Use action words and emotional triggers
-          - Ensure variety in messaging and angles
-          - Follow Google Ads policies
-          - Return ONLY the requested ad copy as JSON arrays
-          
-          ${prompt}`
+          text: `${SYSTEM_PROMPT}\n\n${userPrompt}`
         }]
       }],
       generationConfig: {
-        maxOutputTokens: maxTokens,
-        temperature: 0.7,
-      },
+        temperature: 0.8,
+        maxOutputTokens: 2000,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "OBJECT",
+          properties: {
+            headlines: { 
+              type: "ARRAY", 
+              items: { type: "STRING" },
+              minItems: 1,
+              maxItems: 30
+            },
+            descriptions: { 
+              type: "ARRAY", 
+              items: { type: "STRING" },
+              minItems: 1,
+              maxItems: 30
+            }
+          },
+          required: ["headlines", "descriptions"]
+        }
+      }
     }),
   });
 
   if (!response.ok) {
     const error = await response.text();
     console.error('Gemini API error:', error);
-    throw new Error(`Gemini API error: ${response.status}`);
+    throw new Error(`Gemini API error: ${response.status} - ${error}`);
   }
 
   const data = await response.json();
-  return data.candidates[0].content.parts[0].text;
+  const rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+  console.log('Gemini raw response:', rawContent);
+  
+  return safeJsonParse(rawContent);
 };
 
 serve(async (req) => {
@@ -163,111 +355,47 @@ serve(async (req) => {
       });
     }
 
-    // Parse and validate request body
-    const requestBody = await req.json();
-    const {
-      existingHeadlines = '',
-      existingDescriptions = '',
-      keywords = '',
-      context = '',
-      numHeadlines = 10,
-      numDescriptions = 4,
-      model = 'gpt-4o',
-      softLimitClamp = true
-    } = requestBody;
+    // Parse and validate request body with new preprocessing
+    const rawRequestBody = await req.json();
+    console.log('Raw request:', rawRequestBody);
+    
+    // Preprocess request to unified format
+    const cleanedRequest = preprocess(rawRequestBody);
+    console.log('Processed request:', cleanedRequest);
 
     // Input validation
-    if (numHeadlines > 30 || numDescriptions > 30) {
-      return new Response(JSON.stringify({ error: 'Too many items requested' }), {
+    if (cleanedRequest.num_headlines > 30 || cleanedRequest.num_descriptions > 30) {
+      return new Response(JSON.stringify({ error: 'Too many items requested (max 30 each)' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Build comprehensive prompt
-    const prompt = `Generate Google Ads RSA copy based on:
-
-    EXISTING HEADLINES (for reference):
-    ${existingHeadlines || 'None provided'}
-
-    EXISTING DESCRIPTIONS (for reference):
-    ${existingDescriptions || 'None provided'}
-
-    TARGET KEYWORDS:
-    ${keywords || 'None provided'}
-
-    CONTEXT/OFFER:
-    ${context || 'General business promotion'}
-
-    REQUIREMENTS:
-    - Generate ${numHeadlines} unique headlines (max 30 chars each)
-    - Generate ${numDescriptions} unique descriptions (max 90 chars each)
-    - Include keywords naturally where possible
-    - Vary messaging angles and CTAs
-    - Ensure compliance with Google Ads policies
-    
-    Return response as JSON with this exact format:
-    {
-      "headlines": ["headline1", "headline2", ...],
-      "descriptions": ["description1", "description2", ...]
-    }`;
-
-    console.log('Generating with model:', model);
+    console.log('Generating with provider:', cleanedRequest.provider);
+    console.log('Model:', cleanedRequest.model);
     console.log('User ID:', user.id);
     
-    let generatedContent: string;
+    let rawGeneratedData: any;
 
-    // Generate content based on model selection
-    if (model.includes('gpt') || model.includes('openai')) {
-      generatedContent = await generateWithOpenAI(prompt, model, 2000);
-    } else if (model.includes('gemini')) {
-      generatedContent = await generateWithGemini(prompt, 2000);
+    // Generate content based on provider
+    if (cleanedRequest.provider === 'google') {
+      rawGeneratedData = await generateWithGemini(cleanedRequest);
     } else {
-      return new Response(JSON.stringify({ error: 'Unsupported model' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      rawGeneratedData = await generateWithOpenAI(cleanedRequest);
     }
 
-    // Parse the generated content
-    let parsedContent;
-    try {
-      // Try to extract JSON from the response
-      const jsonMatch = generatedContent.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        parsedContent = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error('No JSON found in response');
-      }
-    } catch (parseError) {
-      console.error('Failed to parse generated content:', parseError);
-      console.log('Raw content:', generatedContent);
-      
-      // Fallback: create structured response from raw text
-      const lines = generatedContent.split('\n').filter(line => line.trim());
-      parsedContent = {
-        headlines: lines.slice(0, numHeadlines).map(h => softClamp(h.replace(/^\d+\.?\s*/, ''), 30)),
-        descriptions: lines.slice(numHeadlines, numHeadlines + numDescriptions).map(d => softClamp(d.replace(/^\d+\.?\s*/, ''), 90))
-      };
-    }
+    // Post-process the generated content
+    const processedResult = postprocess(rawGeneratedData, cleanedRequest);
 
-    // Apply soft clamping if enabled
-    if (softLimitClamp) {
-      parsedContent.headlines = parsedContent.headlines?.map((h: string) => softClamp(h, 30)) || [];
-      parsedContent.descriptions = parsedContent.descriptions?.map((d: string) => softClamp(d, 90)) || [];
-    }
-
-    // Ensure we have the right number of items
-    const headlines = parsedContent.headlines?.slice(0, numHeadlines) || [];
-    const descriptions = parsedContent.descriptions?.slice(0, numDescriptions) || [];
-
-    console.log(`Generated ${headlines.length} headlines and ${descriptions.length} descriptions`);
+    console.log(`Generated ${processedResult.headlines.length} headlines and ${processedResult.descriptions.length} descriptions`);
 
     return new Response(JSON.stringify({
-      headlines,
-      descriptions,
+      headlines: processedResult.headlines,
+      descriptions: processedResult.descriptions,
       usage: {
-        model,
+        provider: cleanedRequest.provider,
+        model: cleanedRequest.model,
+        locale: cleanedRequest.locale,
         timestamp: new Date().toISOString(),
         userId: user.id
       }
