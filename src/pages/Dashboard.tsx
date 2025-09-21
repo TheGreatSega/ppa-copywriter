@@ -188,7 +188,7 @@ export default function Dashboard() {
   const [filterSearch, setFilterSearch] = useState("");
   const [filterLength, setFilterLength] = useState<"all" | "within" | "over">("all");
   const [filterIncludeKW, setFilterIncludeKW] = useState(false);
-  const [filterTag, setFilterTag] = useState("");
+  const [filterTag, setFilterTag] = useState("__all__");
 
   // Derived
   const existingHeadlinesList = useMemo(
@@ -298,7 +298,7 @@ export default function Dashboard() {
           if (!hay.includes(s)) return false;
         }
         if (filterIncludeKW && !includesKeyword(text)) return false;
-        if (filterTag && !(tags || []).includes(filterTag)) return false;
+        if (filterTag && filterTag !== "__all__" && !(tags || []).includes(filterTag)) return false;
         if (filterLength === "within" && ((type === "headlines" ? text.length <= MAX_HEADLINE : text.length <= MAX_DESCRIPTION) === false)) return false;
         if (filterLength === "over" && ((type === "headlines" ? text.length > MAX_HEADLINE : text.length > MAX_DESCRIPTION) === false)) return false;
         return true;
@@ -512,7 +512,7 @@ export default function Dashboard() {
                       <Select value={filterTag} onValueChange={setFilterTag}>
                         <SelectTrigger><SelectValue placeholder="Filter by tag" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">All tags</SelectItem>
+                          <SelectItem value="__all__">All tags</SelectItem>
                           {uniqueTags.map((t) => (
                             <SelectItem key={t} value={t}>{t}</SelectItem>
                           ))}
