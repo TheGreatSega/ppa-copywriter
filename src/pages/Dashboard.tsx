@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Select,
   SelectContent,
@@ -161,6 +164,9 @@ function buildKeywordList(raw: string): string[] {
 }
 
 export default function Dashboard() {
+  const { user, session } = useAuth();
+  const { toast } = useToast();
+  
   // Inputs
   const [existingHeadlines, setExistingHeadlines] = useState("");
   const [existingDescriptions, setExistingDescriptions] = useState("");
@@ -176,6 +182,9 @@ export default function Dashboard() {
   // Results
   const [headlines, setHeadlines] = useState<string[]>([]);
   const [descriptions, setDescriptions] = useState<string[]>([]);
+  
+  // Loading state
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
 
   // Collaboration meta
   const [headlineTags, setHeadlineTags] = useState<string[][]>([]);
@@ -213,29 +222,77 @@ export default function Dashboard() {
     return { hOk, dOk, hTotal: headlines.length, dTotal: descriptions.length };
   }, [headlines, descriptions]);
 
-  // --- Generation (mock). Replace with backend call. ---
-  const generate = () => {
-    const base = (prefix: string, i: number) =>
-      `${prefix} for ${softClamp((keywords || context || "your offer").replace(/\n/g, " "), 18)} #${i + 1}`;
+  // --- Generation - calls secure edge function ---
+  const generate = async () => {
+    if (!user || !session) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to generate ad copy.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    const newHeadlines = Array.from({ length: numHeadlines }, (_, i) => {
-      const text = base("High-converting", i);
-      return softLimitClamp ? softClamp(text, MAX_HEADLINE) : text;
-    });
-    const newDescriptions = Array.from({ length: numDescriptions }, (_, i) => {
-      const text = `Boost results with ${softClamp(
-        (existingHeadlinesList[0] || existingDescriptionsList[0] || "AI-optimized ads"),
-        36
-      )}. Try ${softClamp((keywords || "relevant keywords"), 24)} today.`;
-      return softLimitClamp ? softClamp(text, MAX_DESCRIPTION) : text;
-    });
+    setIsGenerating(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-ad-copy', {
+        body: {
+          existingHeadlines,
+          existingDescriptions,
+          keywords,
+          context,
+          numHeadlines,
+          numDescriptions,
+          model,
+          softLimitClamp
+        }
+      });
 
-    setHeadlines(newHeadlines);
-    setDescriptions(newDescriptions);
-    setHeadlineTags(Array.from({ length: newHeadlines.length }, () => []));
-    setDescriptionTags(Array.from({ length: newDescriptions.length }, () => []));
-    setHeadlineNotes(Array.from({ length: newHeadlines.length }, () => ""));
-    setDescriptionNotes(Array.from({ length: newDescriptions.length }, () => ""));
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(error.message || 'Failed to generate ad copy');
+      }
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      const { headlines: newHeadlines, descriptions: newDescriptions } = data;
+
+      setHeadlines(newHeadlines || []);
+      setDescriptions(newDescriptions || []);
+      setHeadlineTags(Array.from({ length: newHeadlines?.length || 0 }, () => []));
+      setDescriptionTags(Array.from({ length: newDescriptions?.length || 0 }, () => []));
+      setHeadlineNotes(Array.from({ length: newHeadlines?.length || 0 }, () => ""));
+      setDescriptionNotes(Array.from({ length: newDescriptions?.length || 0 }, () => ""));
+
+      toast({
+        title: "Success!",
+        description: `Generated ${newHeadlines?.length || 0} headlines and ${newDescriptions?.length || 0} descriptions.`,
+      });
+
+    } catch (error: any) {
+      console.error('Generation error:', error);
+      
+      let errorMessage = 'Failed to generate ad copy. Please try again.';
+      
+      if (error.message?.includes('rate limit')) {
+        errorMessage = 'Daily rate limit exceeded (50 requests per day). Please try again tomorrow.';
+      } else if (error.message?.includes('Authorization')) {
+        errorMessage = 'Authentication failed. Please log in again.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      toast({
+        title: "Generation Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const clearAll = () => {
@@ -459,10 +516,11 @@ export default function Dashboard() {
                 </div>
 
                 <div className="md:col-span-2 flex items-center gap-2">
-                  <Button onClick={generate}>
-                    <RefreshCw className="mr-2 h-4 w-4" /> Generate
+                  <Button onClick={generate} disabled={isGenerating}>
+                    <RefreshCw className={`mr-2 h-4 w-4 ${isGenerating ? 'animate-spin' : ''}`} /> 
+                    {isGenerating ? 'Generating...' : 'Generate'}
                   </Button>
-                  <Button variant="ghost" onClick={clearAll}>
+                  <Button variant="ghost" onClick={clearAll} disabled={isGenerating}>
                     <Trash2 className="mr-2 h-4 w-4" /> Clear Results
                   </Button>
                 </div>
@@ -726,10 +784,10 @@ export default function Dashboard() {
           <Card>
             <CardContent className="py-4 text-xs text-muted-foreground">
               <p>
-                <strong>Integration note:</strong> Wire the <code>generate()</code> handler to your backend AI endpoint. Send: <code>existingHeadlines</code>, <code>existingDescriptions</code>, <code>keywords</code>, <code>context</code>, <code>numHeadlines</code>, <code>numDescriptions</code>, <code>model</code>, and <code>softLimitClamp</code>. Return arrays: <code>headlines[]</code> and <code>descriptions[]</code>.
+                <strong>🚀 AI Integration Active:</strong> This tool now uses secure OpenAI and Gemini APIs with rate limiting (50 requests/day per user). Models available: <code>gpt-4o</code>, <code>gpt-4.1</code>, <code>claude-3.5-sonnet</code>, <code>gemini-1.5-pro</code>. Authentication required.
               </p>
               <p>
-                Collaboration fields are stored client-side here as <code>headlineTags[]</code>, <code>descriptionTags[]</code>, <code>headlineNotes[]</code>, and <code>descriptionNotes[]</code>. Persist them in your DB as needed.
+                <strong>Security features:</strong> JWT authentication, rate limiting, input validation, and request logging. All API keys are securely stored in Supabase Edge Function secrets.
               </p>
             </CardContent>
           </Card>
