@@ -115,20 +115,6 @@ const RowActions: React.FC<{
 );
 
 
-// Keywords helper (very simple parsing for matching)
-function buildKeywordList(raw: string): string[] {
-  const lines = raw.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
-  const tokens = new Set<string>();
-  for (const line of lines) {
-    const cleaned = line.replace(/[\[\]\+\"']/g, " ");
-    cleaned
-      .split(/[^a-zA-Z0-9]+/)
-      .map((w) => w.toLowerCase())
-      .filter((w) => w.length > 2)
-      .forEach((w) => tokens.add(w));
-  }
-  return Array.from(tokens);
-}
 
 export default function Dashboard() {
   const { user, session } = useAuth();
@@ -144,7 +130,6 @@ export default function Dashboard() {
   const [numHeadlines, setNumHeadlines] = useState<number>(10);
   const [numDescriptions, setNumDescriptions] = useState<number>(4);
   const [model, setModel] = useState<string>("gpt-4o");
-  const [softLimitClamp, setSoftLimitClamp] = useState<boolean>(true);
 
   // Results
   const [headlines, setHeadlines] = useState<string[]>([]);
@@ -157,7 +142,6 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<"headlines" | "descriptions">("headlines");
   const [filterSearch, setFilterSearch] = useState("");
   const [filterLength, setFilterLength] = useState<"all" | "within" | "over">("all");
-  const [filterIncludeKW, setFilterIncludeKW] = useState(false);
 
   // Derived
   const existingHeadlinesList = useMemo(
@@ -168,13 +152,6 @@ export default function Dashboard() {
     () => existingDescriptions.split(/\r?\n/).map((s) => s.trim()).filter(Boolean),
     [existingDescriptions]
   );
-  const kwList = useMemo(() => buildKeywordList(keywords), [keywords]);
-
-  const includesKeyword = (text: string) => {
-    if (!kwList.length) return false;
-    const t = text.toLowerCase();
-    return kwList.some((k) => t.includes(k));
-  };
 
   const withinSpecStats = useMemo(() => {
     const hOk = headlines.filter((h) => h.length <= MAX_HEADLINE).length;
@@ -205,7 +182,6 @@ export default function Dashboard() {
           numHeadlines,
           numDescriptions,
           model,
-          softLimitClamp,
           locale: 'en-GB' // Default to UK English for better ad copy
         }
       });
@@ -300,7 +276,6 @@ export default function Dashboard() {
           const s = filterSearch.toLowerCase();
           if (!text.toLowerCase().includes(s)) return false;
         }
-        if (filterIncludeKW && !includesKeyword(text)) return false;
         if (filterLength === "within" && ((type === "headlines" ? text.length <= MAX_HEADLINE : text.length <= MAX_DESCRIPTION) === false)) return false;
         if (filterLength === "over" && ((type === "headlines" ? text.length > MAX_HEADLINE : text.length > MAX_DESCRIPTION) === false)) return false;
         return true;
@@ -446,15 +421,7 @@ export default function Dashboard() {
                   <p className="text-xs text-muted-foreground">OpenAI models generally provide better ad copy quality.</p>
                 </div>
 
-                <div className="flex items-center justify-between rounded-lg border p-3">
-                  <div>
-                    <p className="text-sm font-medium">Auto-soft clamp to spec</p>
-                    <p className="text-xs text-muted-foreground">If on, results are gently trimmed to ≤30/≤90.</p>
-                  </div>
-                  <Switch checked={softLimitClamp} onCheckedChange={setSoftLimitClamp} />
-                </div>
-
-                <div className="md:col-span-2 flex items-center gap-2">
+                <div className="flex items-center gap-2">
                   <Button onClick={generate} disabled={isGenerating}>
                     <RefreshCw className={`mr-2 h-4 w-4 ${isGenerating ? 'animate-spin' : ''}`} /> 
                     {isGenerating ? 'Generating...' : 'Generate'}
@@ -491,7 +458,7 @@ export default function Dashboard() {
                     <div>
                       <Input placeholder="Search text…" value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} />
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div>
                       <Select value={filterLength} onValueChange={(v) => setFilterLength(v as any)}>
                         <SelectTrigger><SelectValue placeholder="Length" /></SelectTrigger>
                         <SelectContent>
@@ -500,10 +467,6 @@ export default function Dashboard() {
                           <SelectItem value="over">Over spec</SelectItem>
                         </SelectContent>
                       </Select>
-                      <div className="flex items-center gap-2 rounded-lg border p-2">
-                        <Switch checked={filterIncludeKW} onCheckedChange={setFilterIncludeKW} id="kw-toggle" />
-                        <Label htmlFor="kw-toggle" className="text-xs">Includes keyword</Label>
-                      </div>
                     </div>
                   </div>
 
@@ -590,7 +553,7 @@ export default function Dashboard() {
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   <div className="flex items-center gap-1"><Check className="h-3.5 w-3.5" /> Headlines ≤ {MAX_HEADLINE} chars</div>
                   <div className="flex items-center gap-1"><Check className="h-3.5 w-3.5" /> Descriptions ≤ {MAX_DESCRIPTION} chars</div>
-                  <div className="flex items-center gap-1"><Check className="h-3.5 w-3.5" /> Filters: search / length / keyword</div>
+                  <div className="flex items-center gap-1"><Check className="h-3.5 w-3.5" /> Filters: search / length</div>
                   <div className="flex items-center gap-1"><Check className="h-3.5 w-3.5" /> Export CSV / Excel</div>
                 </div>
               </CardContent>
