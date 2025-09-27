@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { SYSTEM_PROMPT } from "./prompt.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,15 +21,6 @@ interface RequestShape {
   locale?: string;
 }
 
-// System prompt for all providers
-const SYSTEM_PROMPT = `You are a senior performance marketing copywriter specialising in Google Ads Responsive Search Ads (RSA). You:
-- Optimise for CTR and CVR while preserving brand safety and compliance.
-- Always meet RSA character specs: headlines ≤ 30 characters; descriptions ≤ 90 characters.
-- Write clear, scannable, benefit-led language; avoid fluff, emojis, and excessive punctuation.
-- Naturally incorporate provided keywords/search queries where relevant. Do NOT keyword-stuff.
-- Produce unique lines with meaningful variance (benefits, features, proof, offer, urgency, CTA, social proof, objection handling). No duplicates or near-duplicates.
-- Follow the provided locale (default en-GB) for spelling and punctuation.
-- Do not include your reasoning or commentary in the output — output JSON only.`;
 
 // User prompt template
 const buildUserPrompt = (req: RequestShape) => {
