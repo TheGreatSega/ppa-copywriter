@@ -26,7 +26,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { Download, Copy, RefreshCw, Trash2, Check, Tag as TagIcon } from "lucide-react";
+import { Download, Copy, RefreshCw, Trash2, Check } from "lucide-react";
 import * as XLSX from "xlsx";
 
 // --- Spec constants (RSA) ---
@@ -46,9 +46,9 @@ const softClamp = (text: string, limit: number) => {
   return (lastSpace > 10 ? slice.slice(0, lastSpace) : slice).trim();
 };
 
-// --- CSV / XLSX helpers (now include tags + notes) ---
-function downloadCSV(rows: { type: string; text: string; chars: number; within: boolean; tags: string[]; notes: string }[]) {
-  const header = ["type", "text", "characters", "within_spec", "tags", "notes"];
+// --- CSV / XLSX helpers ---
+function downloadCSV(rows: { type: string; text: string; chars: number; within: boolean }[]) {
+  const header = ["type", "text", "characters", "within_spec"];
   const csv = [header.join(",")]
     .concat(
       rows.map((r) =>
@@ -57,8 +57,6 @@ function downloadCSV(rows: { type: string; text: string; chars: number; within: 
           JSON.stringify(r.text),
           String(r.chars),
           r.within ? "true" : "false",
-          JSON.stringify(r.tags.join("|")),
-          JSON.stringify(r.notes || ""),
         ].join(",")
       )
     )
@@ -70,14 +68,14 @@ function downloadCSV(rows: { type: string; text: string; chars: number; within: 
   link.click();
 }
 
-function downloadXLSX(headlines: string[], hTags: string[][], hNotes: string[], descriptions: string[], dTags: string[][], dNotes: string[]) {
+function downloadXLSX(headlines: string[], descriptions: string[]) {
   const ws1 = XLSX.utils.aoa_to_sheet([
-    ["Headline", "Characters", "Within Spec (≤30)", "Tags", "Notes"],
-    ...headlines.map((h, i) => [h, h.length, h.length <= MAX_HEADLINE, (hTags[i] || []).join("|"), hNotes[i] || ""]),
+    ["Headline", "Characters", "Within Spec (≤30)"],
+    ...headlines.map((h) => [h, h.length, h.length <= MAX_HEADLINE]),
   ]);
   const ws2 = XLSX.utils.aoa_to_sheet([
-    ["Description", "Characters", "Within Spec (≤90)", "Tags", "Notes"],
-    ...descriptions.map((d, i) => [d, d.length, d.length <= MAX_DESCRIPTION, (dTags[i] || []).join("|"), dNotes[i] || ""]),
+    ["Description", "Characters", "Within Spec (≤90)"],
+    ...descriptions.map((d) => [d, d.length, d.length <= MAX_DESCRIPTION]),
   ]);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws1, "Headlines");
@@ -116,37 +114,6 @@ const RowActions: React.FC<{
   </div>
 );
 
-const LocalTagEditor: React.FC<{ onAdd: (tag: string) => void }> = ({ onAdd }) => {
-  const [t, setT] = useState("");
-  return (
-    <div className="flex items-center gap-2">
-      <Input
-        placeholder="Add tag…"
-        value={t}
-        onChange={(e) => setT(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            const v = t.trim();
-            if (v) onAdd(v);
-            setT("");
-          }
-        }}
-        className="h-8"
-      />
-      <Button
-        variant="outline"
-        className="h-8"
-        onClick={() => {
-          const v = t.trim();
-          if (v) onAdd(v);
-          setT("");
-        }}
-      >
-        Add
-      </Button>
-    </div>
-  );
-};
 
 // Keywords helper (very simple parsing for matching)
 function buildKeywordList(raw: string): string[] {
@@ -186,18 +153,11 @@ export default function Dashboard() {
   // Loading state
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
 
-  // Collaboration meta
-  const [headlineTags, setHeadlineTags] = useState<string[][]>([]);
-  const [descriptionTags, setDescriptionTags] = useState<string[][]>([]);
-  const [headlineNotes, setHeadlineNotes] = useState<string[]>([]);
-  const [descriptionNotes, setDescriptionNotes] = useState<string[]>([]);
-
   // Filters
   const [activeTab, setActiveTab] = useState<"headlines" | "descriptions">("headlines");
   const [filterSearch, setFilterSearch] = useState("");
   const [filterLength, setFilterLength] = useState<"all" | "within" | "over">("all");
   const [filterIncludeKW, setFilterIncludeKW] = useState(false);
-  const [filterTag, setFilterTag] = useState("__all__");
 
   // Derived
   const existingHeadlinesList = useMemo(
@@ -263,10 +223,6 @@ export default function Dashboard() {
 
       setHeadlines(newHeadlines || []);
       setDescriptions(newDescriptions || []);
-      setHeadlineTags(Array.from({ length: newHeadlines?.length || 0 }, () => []));
-      setDescriptionTags(Array.from({ length: newDescriptions?.length || 0 }, () => []));
-      setHeadlineNotes(Array.from({ length: newHeadlines?.length || 0 }, () => ""));
-      setDescriptionNotes(Array.from({ length: newDescriptions?.length || 0 }, () => ""));
 
       toast({
         title: "Success!",
@@ -299,10 +255,6 @@ export default function Dashboard() {
   const clearAll = () => {
     setHeadlines([]);
     setDescriptions([]);
-    setHeadlineTags([]);
-    setDescriptionTags([]);
-    setHeadlineNotes([]);
-    setDescriptionNotes([]);
   };
 
   const copyAll = async () => {
@@ -318,55 +270,42 @@ export default function Dashboard() {
 
   const downloadCombinedCSV = () => {
     const rows = [
-      ...headlines.map((h, i) => ({
+      ...headlines.map((h) => ({
         type: "headline",
         text: h,
         chars: h.length,
         within: h.length <= MAX_HEADLINE,
-        tags: headlineTags[i] || [],
-        notes: headlineNotes[i] || "",
       })),
-      ...descriptions.map((d, i) => ({
+      ...descriptions.map((d) => ({
         type: "description",
         text: d,
         chars: d.length,
         within: d.length <= MAX_DESCRIPTION,
-        tags: descriptionTags[i] || [],
-        notes: descriptionNotes[i] || "",
       })),
     ];
     downloadCSV(rows);
   };
 
   const downloadWorkbook = () => {
-    downloadXLSX(headlines, headlineTags, headlineNotes, descriptions, descriptionTags, descriptionNotes);
+    downloadXLSX(headlines, descriptions);
   };
 
   // Filtering helpers
   const makeFilter = (type: "headlines" | "descriptions") => {
     const texts = type === "headlines" ? headlines : descriptions;
-    const tags = type === "headlines" ? headlineTags : descriptionTags;
-    const notes = type === "headlines" ? headlineNotes : descriptionNotes;
 
-    return texts.map((text, i) => ({ text, i, tags: tags[i] || [], note: notes[i] || "" }))
-      .filter(({ text, tags, note }) => {
+    return texts.map((text, i) => ({ text, i }))
+      .filter(({ text }) => {
         if (filterSearch) {
           const s = filterSearch.toLowerCase();
-          const hay = `${text} ${(tags || []).join(" ")} ${note}`.toLowerCase();
-          if (!hay.includes(s)) return false;
+          if (!text.toLowerCase().includes(s)) return false;
         }
         if (filterIncludeKW && !includesKeyword(text)) return false;
-        if (filterTag && filterTag !== "__all__" && !(tags || []).includes(filterTag)) return false;
         if (filterLength === "within" && ((type === "headlines" ? text.length <= MAX_HEADLINE : text.length <= MAX_DESCRIPTION) === false)) return false;
         if (filterLength === "over" && ((type === "headlines" ? text.length > MAX_HEADLINE : text.length > MAX_DESCRIPTION) === false)) return false;
         return true;
       });
   };
-
-  const uniqueTags = useMemo(() => {
-    const source = activeTab === "headlines" ? headlineTags : descriptionTags;
-    return Array.from(new Set(source.flat().filter(Boolean)));
-  }, [activeTab, headlineTags, descriptionTags]);
 
   const HeaderBar = (
     <div className="sticky top-0 z-30 backdrop-blur supports-[backdrop-filter]:bg-white/70 bg-white/80 border-b">
@@ -548,11 +487,11 @@ export default function Dashboard() {
                   </TabsList>
 
                   {/* Filters */}
-                  <div className="mt-4 grid grid-cols-1 md:grid-cols-12 gap-3">
-                    <div className="md:col-span-5">
-                      <Input placeholder="Search text, tags, notes…" value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} />
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <Input placeholder="Search text…" value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} />
                     </div>
-                    <div className="md:col-span-3">
+                    <div className="grid grid-cols-2 gap-3">
                       <Select value={filterLength} onValueChange={(v) => setFilterLength(v as any)}>
                         <SelectTrigger><SelectValue placeholder="Length" /></SelectTrigger>
                         <SelectContent>
@@ -561,21 +500,10 @@ export default function Dashboard() {
                           <SelectItem value="over">Over spec</SelectItem>
                         </SelectContent>
                       </Select>
-                    </div>
-                    <div className="md:col-span-2 flex items-center gap-2 rounded-lg border p-2">
-                      <Switch checked={filterIncludeKW} onCheckedChange={setFilterIncludeKW} id="kw-toggle" />
-                      <Label htmlFor="kw-toggle" className="text-xs">Includes keyword</Label>
-                    </div>
-                    <div className="md:col-span-2">
-                      <Select value={filterTag} onValueChange={setFilterTag}>
-                        <SelectTrigger><SelectValue placeholder="Filter by tag" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__all__">All tags</SelectItem>
-                          {uniqueTags.map((t) => (
-                            <SelectItem key={t} value={t}>{t}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center gap-2 rounded-lg border p-2">
+                        <Switch checked={filterIncludeKW} onCheckedChange={setFilterIncludeKW} id="kw-toggle" />
+                        <Label htmlFor="kw-toggle" className="text-xs">Includes keyword</Label>
+                      </div>
                     </div>
                   </div>
 
@@ -585,7 +513,7 @@ export default function Dashboard() {
                       {makeFilter("headlines").length === 0 && (
                         <p className="text-sm text-muted-foreground">No headlines to show. Generate or adjust filters.</p>
                       )}
-                      {makeFilter("headlines").map(({ text: h, i: idx, tags }) => (
+                      {makeFilter("headlines").map(({ text: h, i: idx }) => (
                         <div key={idx} className="rounded-lg border p-3">
                           <div className="flex items-start gap-2">
                             <div className="flex-1">
@@ -607,64 +535,10 @@ export default function Dashboard() {
                                 onCopy={async () => { await navigator.clipboard.writeText(h); }}
                                 onDelete={() => {
                                   const nextH = headlines.filter((_, i) => i !== idx);
-                                  const nextT = headlineTags.filter((_, i) => i !== idx);
-                                  const nextN = headlineNotes.filter((_, i) => i !== idx);
                                   setHeadlines(nextH);
-                                  setHeadlineTags(nextT);
-                                  setHeadlineNotes(nextN);
                                 }}
                               />
                             </div>
-                          </div>
-
-                          {/* Tags */}
-                          <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <div className="flex items-center gap-1">
-                              <TagIcon className="h-4 w-4 text-muted-foreground" />
-                              {tags && tags.length > 0 ? (
-                                tags.map((t, tIdx) => (
-                                  <Badge key={tIdx} variant="outline" className="px-2">
-                                    <span>{t}</span>
-                                    <button
-                                      className="ml-2 text-[10px] opacity-70 hover:opacity-100"
-                                      onClick={() => {
-                                        const next = [...headlineTags];
-                                        next[idx] = (next[idx] || []).filter((x) => x !== t);
-                                        setHeadlineTags(next);
-                                      }}
-                                      aria-label={`Remove tag ${t}`}
-                                    >
-                                      ✕
-                                    </button>
-                                  </Badge>
-                                ))
-                              ) : (
-                                <span className="text-xs text-muted-foreground">No tags yet</span>
-                              )}
-                            </div>
-                            <LocalTagEditor
-                              onAdd={(tag) => {
-                                const next = [...headlineTags];
-                                const cur = new Set(next[idx] || []);
-                                cur.add(tag);
-                                next[idx] = Array.from(cur);
-                                setHeadlineTags(next);
-                              }}
-                            />
-                          </div>
-
-                          {/* Notes */}
-                          <div className="mt-3">
-                            <Label className="text-xs">Notes</Label>
-                            <Input
-                              placeholder="Optional note (e.g., uses price, CTA, brand term)"
-                              value={headlineNotes[idx] || ""}
-                              onChange={(e) => {
-                                const next = [...headlineNotes];
-                                next[idx] = e.target.value;
-                                setHeadlineNotes(next);
-                              }}
-                            />
                           </div>
                         </div>
                       ))}
@@ -677,7 +551,7 @@ export default function Dashboard() {
                       {makeFilter("descriptions").length === 0 && (
                         <p className="text-sm text-muted-foreground">No descriptions to show. Generate or adjust filters.</p>
                       )}
-                      {makeFilter("descriptions").map(({ text: d, i: idx, tags }) => (
+                      {makeFilter("descriptions").map(({ text: d, i: idx }) => (
                         <div key={idx} className="rounded-lg border p-3">
                           <div className="flex items-start gap-2">
                             <div className="flex-1">
@@ -700,64 +574,10 @@ export default function Dashboard() {
                                 onCopy={async () => { await navigator.clipboard.writeText(d); }}
                                 onDelete={() => {
                                   const nextD = descriptions.filter((_, i) => i !== idx);
-                                  const nextT = descriptionTags.filter((_, i) => i !== idx);
-                                  const nextN = descriptionNotes.filter((_, i) => i !== idx);
                                   setDescriptions(nextD);
-                                  setDescriptionTags(nextT);
-                                  setDescriptionNotes(nextN);
                                 }}
                               />
                             </div>
-                          </div>
-
-                          {/* Tags */}
-                          <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <div className="flex items-center gap-1">
-                              <TagIcon className="h-4 w-4 text-muted-foreground" />
-                              {tags && tags.length > 0 ? (
-                                tags.map((t, tIdx) => (
-                                  <Badge key={tIdx} variant="outline" className="px-2">
-                                    <span>{t}</span>
-                                    <button
-                                      className="ml-2 text-[10px] opacity-70 hover:opacity-100"
-                                      onClick={() => {
-                                        const next = [...descriptionTags];
-                                        next[idx] = (next[idx] || []).filter((x) => x !== t);
-                                        setDescriptionTags(next);
-                                      }}
-                                      aria-label={`Remove tag ${t}`}
-                                    >
-                                      ✕
-                                    </button>
-                                  </Badge>
-                                ))
-                              ) : (
-                                <span className="text-xs text-muted-foreground">No tags yet</span>
-                              )}
-                            </div>
-                            <LocalTagEditor
-                              onAdd={(tag) => {
-                                const next = [...descriptionTags];
-                                const cur = new Set(next[idx] || []);
-                                cur.add(tag);
-                                next[idx] = Array.from(cur);
-                                setDescriptionTags(next);
-                              }}
-                            />
-                          </div>
-
-                          {/* Notes */}
-                          <div className="mt-3">
-                            <Label className="text-xs">Notes</Label>
-                            <Input
-                              placeholder="Optional note (e.g., urgency, feature/benefit, compliance)"
-                              value={descriptionNotes[idx] || ""}
-                              onChange={(e) => {
-                                const next = [...descriptionNotes];
-                                next[idx] = e.target.value;
-                                setDescriptionNotes(next);
-                              }}
-                            />
                           </div>
                         </div>
                       ))}
@@ -770,9 +590,8 @@ export default function Dashboard() {
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   <div className="flex items-center gap-1"><Check className="h-3.5 w-3.5" /> Headlines ≤ {MAX_HEADLINE} chars</div>
                   <div className="flex items-center gap-1"><Check className="h-3.5 w-3.5" /> Descriptions ≤ {MAX_DESCRIPTION} chars</div>
-                  <div className="flex items-center gap-1"><Check className="h-3.5 w-3.5" /> Per-line tags & notes</div>
-                  <div className="flex items-center gap-1"><Check className="h-3.5 w-3.5" /> Filters: search / length / keyword / tag</div>
-                  <div className="flex items-center gap-1"><Check className="h-3.5 w-3.5" /> Export CSV / Excel (with tags & notes)</div>
+                  <div className="flex items-center gap-1"><Check className="h-3.5 w-3.5" /> Filters: search / length / keyword</div>
+                  <div className="flex items-center gap-1"><Check className="h-3.5 w-3.5" /> Export CSV / Excel</div>
                 </div>
               </CardContent>
             </Card>
