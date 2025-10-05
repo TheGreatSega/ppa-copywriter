@@ -1,3 +1,5 @@
+import { logger } from './logger.ts';
+
 // In-memory rate limiter with sliding window algorithm
 interface RateLimitEntry {
   count: number;
@@ -17,6 +19,7 @@ class RateLimiter {
     this.cache = new Map();
     // Clean up stale entries every 5 minutes
     setInterval(() => this.cleanup(), 5 * 60 * 1000);
+    logger.info('RateLimiter initialized', { dailyLimit: this.DAILY_LIMIT });
   }
 
   async checkLimit(userId: string, supabase: any): Promise<{ allowed: boolean; remaining: number }> {
@@ -68,6 +71,7 @@ class RateLimiter {
         .single();
       
       if (error || !data) {
+        logger.debug('No existing rate limit data found in DB', { userId });
         return {
           count: 0,
           windowStart: Date.now(),
@@ -76,6 +80,7 @@ class RateLimiter {
         };
       }
       
+      logger.debug('Rate limit data fetched from DB', { userId, count: data.request_count });
       return {
         count: data.request_count || 0,
         windowStart: Date.now(),
@@ -83,7 +88,7 @@ class RateLimiter {
         dbSyncCount: 0,
       };
     } catch (error) {
-      console.error('Error fetching rate limit from DB:', error);
+      logger.error('Error fetching rate limit from DB', error as Error, { userId });
       return {
         count: 0,
         windowStart: Date.now(),
@@ -110,19 +115,28 @@ class RateLimiter {
         });
       
       if (error) {
-        console.error('Error syncing rate limit to DB:', error);
+        logger.error('Error syncing rate limit to DB', error as Error, { userId });
+      } else {
+        logger.debug('Rate limit synced to DB', { userId, count: entry.count });
       }
     } catch (error) {
-      console.error('Error syncing to DB:', error);
+      logger.error('Error syncing to DB', error as Error, { userId });
     }
   }
 
   private cleanup(): void {
+    const initialSize = this.cache.size;
     const now = Date.now();
     for (const [key, entry] of this.cache.entries()) {
       if (now - entry.lastUpdated > this.CACHE_TTL_MS * 2) {
         this.cache.delete(key);
       }
+    }
+    if (this.cache.size < initialSize) {
+      logger.debug('Rate limiter cache cleaned', { 
+        removed: initialSize - this.cache.size, 
+        remaining: this.cache.size 
+      });
     }
   }
 }
@@ -147,6 +161,10 @@ class IPRateLimiter {
   constructor() {
     this.cache = new Map();
     setInterval(() => this.cleanup(), 10 * 60 * 1000);
+    logger.info('IPRateLimiter initialized', { 
+      hourlyLimit: this.HOURLY_LIMIT, 
+      burstLimit: this.BURST_LIMIT 
+    });
   }
 
   checkLimit(ip: string): { allowed: boolean; reason?: string } {
@@ -167,7 +185,7 @@ class IPRateLimiter {
     // Check for burst traffic
     if (entry.count > this.BURST_LIMIT && now - entry.windowStart < this.BURST_WINDOW_MS) {
       entry.violations++;
-      console.warn(`Burst traffic detected from IP ${ip}. Violations: ${entry.violations}`);
+      logger.warn('Burst traffic detected', { ip, violations: entry.violations });
       return { allowed: false, reason: 'Burst traffic detected. Please slow down.' };
     }
     

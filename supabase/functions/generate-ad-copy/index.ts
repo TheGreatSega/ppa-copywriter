@@ -5,6 +5,9 @@ import { SYSTEM_PROMPT } from "./prompt.ts";
 import { rateLimiter, ipRateLimiter } from "./rate-limiter.ts";
 import { circuitBreaker } from "./circuit-breaker.ts";
 import { requestQueue } from "./queue.ts";
+import { createLogger } from "./logger.ts";
+import { metricsCollector } from "./metrics.ts";
+import { alertManager } from "./alerting.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -319,18 +322,30 @@ const generateWithGemini = async (req: RequestShape) => {
   return safeJsonParse(rawContent);
 };
 
+// Start alert monitoring (runs every 5 minutes)
+setInterval(async () => {
+  const currentMetrics = metricsCollector.getCurrentWindowMetrics();
+  await alertManager.checkAndAlert(currentMetrics);
+}, 5 * 60 * 1000);
+
 serve(async (req) => {
+  const requestId = crypto.randomUUID();
+  const startTime = Date.now();
+  const logger = createLogger(requestId);
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    logger.info('Request received', { method: req.method, url: req.url });
+
     // IP-based rate limiting (DDoS protection)
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
     const ipLimit = ipRateLimiter.checkLimit(ip);
     if (!ipLimit.allowed) {
-      console.warn(`IP rate limit exceeded for ${ip}: ${ipLimit.reason}`);
+      logger.warn('IP rate limit exceeded', { ip, reason: ipLimit.reason });
       return new Response(
         JSON.stringify({
           error: ipLimit.reason || 'Too many requests from this IP address',
@@ -349,6 +364,7 @@ serve(async (req) => {
     // Get authorization header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
+      logger.warn('Request missing authorization header');
       return new Response(JSON.stringify({ error: 'Authorization required' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -365,17 +381,23 @@ serve(async (req) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
     
     if (authError || !user) {
-      console.error('Auth error:', authError);
+      logger.error('Authentication failed', authError || undefined, { jwt: jwt.substring(0, 20) + '...' });
       return new Response(JSON.stringify({ error: 'Invalid authorization' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
+    // Update logger with user context
+    const userLogger = logger.child({ userId: user.id });
+    userLogger.info('User authenticated successfully');
+
     // Check rate limit using in-memory cache
     const rateLimitResult = await rateLimiter.checkLimit(user.id, supabase);
     
     if (!rateLimitResult.allowed) {
+      userLogger.warn('Rate limit exceeded', { remaining: rateLimitResult.remaining });
+      metricsCollector.recordRateLimitBreach();
       return new Response(
         JSON.stringify({
           error: 'Rate limit exceeded. You have reached your daily limit of 50 requests.',
@@ -394,23 +416,34 @@ serve(async (req) => {
 
     // Parse and validate request body with new preprocessing
     const rawRequestBody = await req.json();
-    console.log('Raw request:', rawRequestBody);
+    userLogger.debug('Raw request received', { bodyKeys: Object.keys(rawRequestBody) });
     
     // Preprocess request to unified format
     const cleanedRequest = preprocess(rawRequestBody);
-    console.log('Processed request:', cleanedRequest);
+    userLogger.info('Request preprocessed', { 
+      provider: cleanedRequest.provider, 
+      model: cleanedRequest.model,
+      numHeadlines: cleanedRequest.num_headlines,
+      numDescriptions: cleanedRequest.num_descriptions,
+    });
 
     // Input validation
     if (cleanedRequest.num_headlines > 30 || cleanedRequest.num_descriptions > 30) {
+      userLogger.warn('Request validation failed: too many items', { 
+        headlines: cleanedRequest.num_headlines, 
+        descriptions: cleanedRequest.num_descriptions 
+      });
       return new Response(JSON.stringify({ error: 'Too many items requested (max 30 each)' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log('Generating with provider:', cleanedRequest.provider);
-    console.log('Model:', cleanedRequest.model);
-    console.log('User ID:', user.id);
+    const apiStartTime = Date.now();
+    userLogger.info('Starting AI generation', { 
+      provider: cleanedRequest.provider, 
+      model: cleanedRequest.model 
+    });
     
     // Use request queue to manage concurrent operations and circuit breaker for resilience
     const rawGeneratedData = await requestQueue.enqueue(user.id, async () => {
@@ -422,10 +455,30 @@ serve(async (req) => {
       }
     });
 
+    const apiDuration = Date.now() - apiStartTime;
+    userLogger.info('AI generation completed', { durationMs: apiDuration });
+
+    // Update circuit breaker metrics
+    const circuitStatus = circuitBreaker.getStatus(cleanedRequest.provider === 'google' ? 'gemini' : 'openai');
+    metricsCollector.updateProviderMetrics(
+      cleanedRequest.provider === 'google' ? 'gemini' : 'openai',
+      circuitStatus.state,
+      circuitStatus.failures
+    );
+
     // Post-process the generated content
     const processedResult = postprocess(rawGeneratedData, cleanedRequest);
 
-    console.log(`Generated ${processedResult.headlines.length} headlines and ${processedResult.descriptions.length} descriptions`);
+    userLogger.info('Response generated successfully', { 
+      headlines: processedResult.headlines.length, 
+      descriptions: processedResult.descriptions.length 
+    });
+
+    // Record metrics
+    const totalDuration = Date.now() - startTime;
+    metricsCollector.recordRequest(totalDuration);
+
+    userLogger.info('Request completed successfully', { totalDurationMs: totalDuration });
 
     return new Response(JSON.stringify({
       headlines: processedResult.headlines,
@@ -442,7 +495,12 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('Error in generate-ad-copy function:', error);
+    const duration = Date.now() - startTime;
+    metricsCollector.recordRequest(duration);
+    metricsCollector.recordError();
+    
+    logger.error('Request failed', error as Error, { durationMs: duration });
+    
     return new Response(JSON.stringify({ 
       error: error instanceof Error ? error.message : 'Internal server error' 
     }), {

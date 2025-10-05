@@ -1,3 +1,5 @@
+import { logger } from './logger.ts';
+
 // Circuit breaker pattern for external API resilience
 enum CircuitState {
   CLOSED = 'CLOSED',   // Normal operation
@@ -20,6 +22,10 @@ class CircuitBreaker {
 
   constructor() {
     this.circuits = new Map();
+    logger.info('CircuitBreaker initialized', { 
+      failureThreshold: this.FAILURE_THRESHOLD, 
+      timeoutMs: this.TIMEOUT_MS 
+    });
   }
 
   async execute<T>(
@@ -32,11 +38,12 @@ class CircuitBreaker {
     // If circuit is OPEN, check if timeout has passed
     if (circuit.state === CircuitState.OPEN) {
       if (now - circuit.lastFailureTime > this.TIMEOUT_MS) {
-        console.log(`Circuit breaker for ${provider}: Moving to HALF_OPEN state`);
+        logger.info('Circuit breaker transitioning to HALF_OPEN', { provider });
         circuit.state = CircuitState.HALF_OPEN;
         circuit.failures = 0;
       } else {
         const waitTime = Math.ceil((this.TIMEOUT_MS - (now - circuit.lastFailureTime)) / 1000);
+        logger.warn('Circuit breaker OPEN, request rejected', { provider, waitTime });
         throw new Error(
           `${provider} API is currently unavailable. Circuit breaker is OPEN. Retry in ${waitTime}s.`
         );
@@ -71,7 +78,7 @@ class CircuitBreaker {
     circuit.lastSuccessTime = Date.now();
 
     if (circuit.state === CircuitState.HALF_OPEN) {
-      console.log(`Circuit breaker for ${provider}: Moving to CLOSED state (recovered)`);
+      logger.info('Circuit breaker recovered, transitioning to CLOSED', { provider });
       circuit.state = CircuitState.CLOSED;
     }
   }
@@ -81,12 +88,14 @@ class CircuitBreaker {
     circuit.failures++;
     circuit.lastFailureTime = Date.now();
 
-    console.error(
-      `Circuit breaker for ${provider}: Failure #${circuit.failures} (threshold: ${this.FAILURE_THRESHOLD})`
-    );
+    logger.error('Circuit breaker failure recorded', undefined, {
+      provider,
+      failures: circuit.failures,
+      threshold: this.FAILURE_THRESHOLD,
+    });
 
     if (circuit.failures >= this.FAILURE_THRESHOLD) {
-      console.error(`Circuit breaker for ${provider}: Moving to OPEN state (too many failures)`);
+      logger.error('Circuit breaker OPENED due to excessive failures', undefined, { provider });
       circuit.state = CircuitState.OPEN;
     }
   }

@@ -1,3 +1,5 @@
+import { logger } from './logger.ts';
+
 // Request queue for managing concurrent operations per user
 interface QueuedRequest {
   id: string;
@@ -20,6 +22,10 @@ class RequestQueue {
     
     // Clean up stale requests every minute
     setInterval(() => this.cleanupStale(), 60 * 1000);
+    logger.info('RequestQueue initialized', { 
+      maxConcurrent: this.MAX_CONCURRENT_PER_USER, 
+      maxQueueSize: this.MAX_QUEUE_SIZE 
+    });
   }
 
   async enqueue<T>(userId: string, operation: () => Promise<T>): Promise<T> {
@@ -33,6 +39,7 @@ class RequestQueue {
 
     // Check if queue is full
     if (currentQueue.length >= this.MAX_QUEUE_SIZE) {
+      logger.warn('Request queue full', { userId, queueSize: currentQueue.length });
       throw new Error('Request queue is full. Please try again in a few moments.');
     }
 
@@ -58,7 +65,7 @@ class RequestQueue {
       }
       this.queues.get(userId)!.push(request);
 
-      console.log(`Request queued for user ${userId}. Queue size: ${this.queues.get(userId)!.length}`);
+      logger.info('Request queued', { userId, queueSize: this.queues.get(userId)!.length });
     });
   }
 
@@ -100,7 +107,7 @@ class RequestQueue {
 
     const nextRequest = queue.shift();
     if (nextRequest) {
-      console.log(`Processing queued request for user ${userId}. Remaining: ${queue.length}`);
+      logger.info('Processing queued request', { userId, remaining: queue.length });
       nextRequest.resolve(null);
     }
 
@@ -111,7 +118,10 @@ class RequestQueue {
 
   private cleanupStale(): void {
     const now = Date.now();
+    let totalCleaned = 0;
+    
     for (const [userId, queue] of this.queues.entries()) {
+      const initialLength = queue.length;
       const validRequests = queue.filter((req) => {
         const isStale = now - req.timestamp > this.TIMEOUT_MS * 2;
         if (isStale) {
@@ -120,11 +130,17 @@ class RequestQueue {
         return !isStale;
       });
 
+      totalCleaned += initialLength - validRequests.length;
+
       if (validRequests.length === 0) {
         this.queues.delete(userId);
       } else {
         this.queues.set(userId, validRequests);
       }
+    }
+
+    if (totalCleaned > 0) {
+      logger.info('Stale requests cleaned from queue', { cleaned: totalCleaned });
     }
   }
 
