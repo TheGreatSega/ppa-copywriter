@@ -109,7 +109,7 @@ const preprocess = (rawReq: any): RequestShape => {
 
   return {
     provider: rawReq.model?.includes('gemini') ? 'google' : 'openai',
-    model: rawReq.model || 'gpt-4o',
+    model: rawReq.model || 'gpt-5-2025-08-07',
     existing_headlines: dedupe(trimLines(existing_headlines)),
     existing_descriptions: dedupe(trimLines(existing_descriptions)),
     keywords_raw: rawReq.keywords || rawReq.keywords_raw || '',
@@ -181,7 +181,7 @@ const safeJsonParse = (s: string) => {
   }
 };
 
-// OpenAI API call with improved prompt structure
+// OpenAI API call with improved prompt structure and model-specific parameter handling
 const generateWithOpenAI = async (req: RequestShape) => {
   const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
   if (!openAIApiKey) {
@@ -192,39 +192,65 @@ const generateWithOpenAI = async (req: RequestShape) => {
   console.log('OpenAI Model:', req.model);
   console.log('User prompt length:', userPrompt.length);
 
+  // Detect if this is a GPT-5, GPT-4.5, GPT-4.1+ model (newer models)
+  const isGPT5Family = req.model.includes('gpt-5');
+  const isGPT4Point5Plus = req.model.includes('gpt-4.5') || req.model.includes('gpt-4.1');
+  const isNewerModel = isGPT5Family || isGPT4Point5Plus;
+
+  // Build request body with model-specific parameters
+  const requestBody: any = {
+    model: req.model,
+    messages: [
+      {
+        role: 'system',
+        content: SYSTEM_PROMPT
+      },
+      {
+        role: 'user',
+        content: userPrompt
+      }
+    ],
+    response_format: { type: "json_object" }
+  };
+
+  // GPT-5 and newer models use max_completion_tokens and do NOT support temperature
+  if (isNewerModel) {
+    requestBody.max_completion_tokens = 2000;
+    console.log('Using max_completion_tokens for newer model (no temperature)');
+  } else {
+    // Legacy models (gpt-4o, gpt-4o-mini) use max_tokens and support temperature
+    requestBody.max_tokens = 2000;
+    requestBody.temperature = 0.8;
+    console.log('Using max_tokens and temperature for legacy model');
+  }
+
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${openAIApiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      model: req.model,
-      messages: [
-        {
-          role: 'system',
-          content: SYSTEM_PROMPT
-        },
-        {
-          role: 'user',
-          content: userPrompt
-        }
-      ],
-      temperature: 0.8,
-      max_tokens: 2000,
-      response_format: { type: "json_object" }
-    }),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {
     const error = await response.text();
     console.error('OpenAI API error:', error);
+    
+    // Enhanced error messages for model-specific issues
+    if (error.includes('temperature') && isNewerModel) {
+      throw new Error(`${req.model} does not support temperature parameter. This is a configuration error.`);
+    }
+    if (error.includes('max_tokens') && isNewerModel) {
+      throw new Error(`${req.model} requires max_completion_tokens instead of max_tokens. This is a configuration error.`);
+    }
+    
     throw new Error(`OpenAI API error: ${response.status} - ${error}`);
   }
 
   const data = await response.json();
   const rawContent = data.choices?.[0]?.message?.content ?? "{}";
-  console.log('OpenAI raw response:', rawContent);
+  console.log('OpenAI raw response preview:', rawContent.substring(0, 200));
   
   return safeJsonParse(rawContent);
 };

@@ -129,7 +129,7 @@ export default function Dashboard() {
   // Settings
   const [numHeadlines, setNumHeadlines] = useState<number>(10);
   const [numDescriptions, setNumDescriptions] = useState<number>(4);
-  const [model, setModel] = useState<string>("gpt-4o");
+  const [model, setModel] = useState<string>("gpt-5-2025-08-07");
 
   // Results
   const [headlines, setHeadlines] = useState<string[]>([]);
@@ -410,15 +410,19 @@ export default function Dashboard() {
                     <SelectTrigger><SelectValue placeholder="Select a model" /></SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
-                        <SelectLabel>OpenAI (Recommended)</SelectLabel>
-                        <SelectItem value="gpt-4o">GPT-4o - Fast & Efficient</SelectItem>
-                        <SelectItem value="gpt-4.1">GPT-4.1 - Most Capable</SelectItem>
-                        <SelectLabel className="mt-2">Google</SelectLabel>
-                        <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro</SelectItem>
+                        <SelectLabel>GPT-5 (Flagship Models)</SelectLabel>
+                        <SelectItem value="gpt-5-2025-08-07">GPT-5 - Most Capable & Balanced</SelectItem>
+                        <SelectItem value="gpt-5-mini-2025-08-07">GPT-5 Mini - Fast & Cost-Efficient</SelectItem>
+                        <SelectItem value="gpt-5-nano-2025-08-07">GPT-5 Nano - Fastest & Cheapest</SelectItem>
+                        <SelectLabel className="mt-2">GPT-4 Series</SelectLabel>
+                        <SelectItem value="gpt-4.5-2025-05-16">GPT-4.5 - Advanced Reasoning</SelectItem>
+                        <SelectItem value="gpt-4.1-2025-04-14">GPT-4.1 - Reliable Performance</SelectItem>
+                        <SelectLabel className="mt-2">Google Gemini</SelectLabel>
+                        <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash - Balanced & Fast</SelectItem>
                       </SelectGroup>
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">OpenAI models generally provide better ad copy quality.</p>
+                  <p className="text-xs text-muted-foreground">GPT-5 models recommended for best quality. Gemini is faster but less precise.</p>
                 </div>
 
                 <div className="flex items-center gap-2">
