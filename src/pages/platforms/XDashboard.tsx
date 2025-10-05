@@ -260,6 +260,17 @@ export default function XDashboard() {
                         <SelectItem value="google/gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
                         <SelectItem value="google/gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
                       </SelectGroup>
+                      <SelectGroup>
+                        <SelectLabel>GPT-5 Series</SelectLabel>
+                        <SelectItem value="gpt-5-2025-08-07">GPT-5 - Most Capable</SelectItem>
+                        <SelectItem value="gpt-5-mini-2025-08-07">GPT-5 Mini - Fast & Efficient</SelectItem>
+                        <SelectItem value="gpt-5-nano-2025-08-07">GPT-5 Nano - Fastest</SelectItem>
+                      </SelectGroup>
+                      <SelectGroup>
+                        <SelectLabel>GPT-4 Series</SelectLabel>
+                        <SelectItem value="gpt-4.5-2025-05-16">GPT-4.5 - Advanced Reasoning</SelectItem>
+                        <SelectItem value="gpt-4.1-2025-04-14">GPT-4.1 - Reliable</SelectItem>
+                      </SelectGroup>
                     </SelectContent>
                   </Select>
                 </div>
