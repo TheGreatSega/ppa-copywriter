@@ -2,6 +2,9 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { SYSTEM_PROMPT } from "./prompt.ts";
+import { rateLimiter, ipRateLimiter } from "./rate-limiter.ts";
+import { circuitBreaker } from "./circuit-breaker.ts";
+import { requestQueue } from "./queue.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -323,6 +326,26 @@ serve(async (req) => {
   }
 
   try {
+    // IP-based rate limiting (DDoS protection)
+    const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+    const ipLimit = ipRateLimiter.checkLimit(ip);
+    if (!ipLimit.allowed) {
+      console.warn(`IP rate limit exceeded for ${ip}: ${ipLimit.reason}`);
+      return new Response(
+        JSON.stringify({
+          error: ipLimit.reason || 'Too many requests from this IP address',
+        }),
+        {
+          status: 429,
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json',
+            'Retry-After': '3600', // 1 hour
+          },
+        }
+      );
+    }
+
     // Get authorization header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
@@ -349,28 +372,24 @@ serve(async (req) => {
       });
     }
 
-    // Check rate limit
-    const { data: rateLimitOk, error: rateLimitError } = await supabase.rpc('check_rate_limit', {
-      p_user_id: user.id,
-      p_endpoint: 'generate-ad-copy',
-      p_daily_limit: 50 // 50 requests per day
-    });
-
-    if (rateLimitError) {
-      console.error('Rate limit check error:', rateLimitError);
-      return new Response(JSON.stringify({ error: 'Rate limit check failed' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (!rateLimitOk) {
-      return new Response(JSON.stringify({ 
-        error: 'Daily rate limit exceeded (50 requests per day)' 
-      }), {
-        status: 429,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    // Check rate limit using in-memory cache
+    const rateLimitResult = await rateLimiter.checkLimit(user.id, supabase);
+    
+    if (!rateLimitResult.allowed) {
+      return new Response(
+        JSON.stringify({
+          error: 'Rate limit exceeded. You have reached your daily limit of 50 requests.',
+          remaining: rateLimitResult.remaining,
+        }),
+        {
+          status: 429,
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json',
+            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+          },
+        }
+      );
     }
 
     // Parse and validate request body with new preprocessing
@@ -393,14 +412,15 @@ serve(async (req) => {
     console.log('Model:', cleanedRequest.model);
     console.log('User ID:', user.id);
     
-    let rawGeneratedData: any;
-
-    // Generate content based on provider
-    if (cleanedRequest.provider === 'google') {
-      rawGeneratedData = await generateWithGemini(cleanedRequest);
-    } else {
-      rawGeneratedData = await generateWithOpenAI(cleanedRequest);
-    }
+    // Use request queue to manage concurrent operations and circuit breaker for resilience
+    const rawGeneratedData = await requestQueue.enqueue(user.id, async () => {
+      // Generate with appropriate provider using circuit breaker
+      if (cleanedRequest.provider === 'google') {
+        return await circuitBreaker.execute('gemini', () => generateWithGemini(cleanedRequest));
+      } else {
+        return await circuitBreaker.execute('openai', () => generateWithOpenAI(cleanedRequest));
+      }
+    });
 
     // Post-process the generated content
     const processedResult = postprocess(rawGeneratedData, cleanedRequest);

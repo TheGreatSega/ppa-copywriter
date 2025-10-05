@@ -1,1 +1,7 @@
 project_id = "oxviqtuvacbwmiyoesyx"
+
+[functions.generate-ad-copy]
+verify_jwt = true
+
+[functions.health]
+verify_jwt = false
