@@ -114,15 +114,17 @@ const preprocess = (rawReq: any): RequestShape => {
     : (rawReq.existing_descriptions || []);
 
   return {
+    platform: rawReq.platform || 'google',
     provider: rawReq.model?.includes('gemini') ? 'google' : 'openai',
-    model: rawReq.model || 'gpt-5-2025-08-07',
+    model: rawReq.model || 'google/gemini-2.5-flash',
     existing_headlines: dedupe(trimLines(existing_headlines)),
     existing_descriptions: dedupe(trimLines(existing_descriptions)),
     keywords_raw: rawReq.keywords || rawReq.keywords_raw || '',
     context: rawReq.context || '',
     num_headlines: clamp(rawReq.numHeadlines || rawReq.num_headlines || 10, 1, 30),
     num_descriptions: clamp(rawReq.numDescriptions || rawReq.num_descriptions || 4, 1, 30),
-    locale: rawReq.locale || 'en-GB'
+    locale: rawReq.locale || 'en-GB',
+    ...rawReq
   };
 };
 
@@ -209,7 +211,7 @@ const generateWithOpenAI = async (req: RequestShape) => {
     messages: [
       {
         role: 'system',
-        content: SYSTEM_PROMPT
+        content: getPlatformPrompt(req.platform || 'google')
       },
       {
         role: 'user',
