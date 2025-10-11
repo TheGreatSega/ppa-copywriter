@@ -49,7 +49,7 @@ function AppSidebar() {
                       <img 
                         src={platform.iconUrl} 
                         alt={platform.title}
-                        className="h-5 w-5 object-contain flex-shrink-0"
+                        className="h-6 w-6 object-cover flex-shrink-0 rounded"
                       />
                       {open && <span>{platform.title}</span>}
                     </NavLink>
