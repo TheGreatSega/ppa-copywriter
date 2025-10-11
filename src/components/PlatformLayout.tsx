@@ -13,13 +13,13 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Search, Facebook, Twitter, Music } from "lucide-react";
+import { Menu } from "lucide-react";
 
 const platforms = [
-  { title: "Google Ads", url: "/dashboard/google-ads", icon: Search },
-  { title: "Meta Ads", url: "/dashboard/meta", icon: Facebook },
-  { title: "X (Twitter)", url: "/dashboard/x", icon: Twitter },
-  { title: "TikTok", url: "/dashboard/tiktok", icon: Music },
+  { title: "Google Ads", url: "/dashboard/google-ads", iconUrl: "/icons/google-ads.png" },
+  { title: "Meta Ads", url: "/dashboard/meta", iconUrl: "/icons/meta.png" },
+  { title: "X (Twitter)", url: "/dashboard/x", iconUrl: "/icons/x.png" },
+  { title: "TikTok", url: "/dashboard/tiktok", iconUrl: "/icons/tiktok.png" },
 ];
 
 function AppSidebar() {
@@ -27,6 +27,11 @@ function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r">
+      <div className="p-3 border-b flex items-center justify-start">
+        <SidebarTrigger className="h-6 w-6">
+          <Menu className="h-4 w-4" />
+        </SidebarTrigger>
+      </div>
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Platforms</SidebarGroupLabel>
@@ -41,7 +46,11 @@ function AppSidebar() {
                         isActive ? "bg-accent text-accent-foreground font-medium" : ""
                       }
                     >
-                      <platform.icon className="h-4 w-4" />
+                      <img 
+                        src={platform.iconUrl} 
+                        alt={platform.title}
+                        className="h-5 w-5 object-contain flex-shrink-0"
+                      />
                       {open && <span>{platform.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
@@ -63,7 +72,6 @@ export default function PlatformLayout() {
         <main className="flex-1 overflow-x-hidden">
           <div className="sticky top-0 z-30 backdrop-blur supports-[backdrop-filter]:bg-background/70 bg-background/80 border-b">
             <div className="px-4 py-3 flex items-center gap-3">
-              <SidebarTrigger />
               <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500" />
               <div>
                 <h1 className="text-lg font-semibold leading-tight">AI Ad Copy Generator</h1>
