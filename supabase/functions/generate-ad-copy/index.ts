@@ -274,7 +274,9 @@ const generateWithGemini = async (req: RequestShape) => {
   console.log('Gemini Model:', req.model);
   console.log('User prompt length:', userPrompt.length);
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${req.model}:generateContent?key=${geminiApiKey}`, {
+  // Strip 'google/' prefix if present for Gemini API
+  const geminiModelName = req.model.replace('google/', '');
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModelName}:generateContent?key=${geminiApiKey}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
