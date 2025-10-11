@@ -1,7 +1,21 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
-import { getPlatformPrompt } from "./platform-prompts.ts";
+
+// Platform modules
+import { GooglePlatform } from "./platforms/google.ts";
+import { MetaPlatform } from "./platforms/meta.ts";
+import { XPlatform } from "./platforms/x.ts";
+import { TikTokPlatform } from "./platforms/tiktok.ts";
+
+// Model clients
+import { callOpenAIJSON } from "./models/openai-client.ts";
+import { callGeminiJSON } from "./models/gemini-client.ts";
+
+// Types
+import type { GenerateRequest, PlatformHandler } from "./types.ts";
+
+// Infrastructure
 import { rateLimiter, ipRateLimiter } from "./rate-limiter.ts";
 import { circuitBreaker } from "./circuit-breaker.ts";
 import { requestQueue } from "./queue.ts";
@@ -14,514 +28,56 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Types
-interface RequestShape {
-  provider: "openai" | "google";
-  model: string;
-  platform?: string;
-  existing_headlines: string[];
-  existing_descriptions: string[];
-  keywords_raw: string;
-  context: string;
-  num_headlines: number;
-  num_descriptions: number;
-  locale?: string;
-}
-
-
-// User prompt template - Platform-aware
-const buildUserPrompt = (req: RequestShape) => {
-  const platform = req.platform || 'google';
-  const existingHeadlinesText = req.existing_headlines.length > 0 
-    ? req.existing_headlines.map(h => `- ${h}`).join('\n') 
-    : 'None provided';
-  
-  const existingDescriptionsText = req.existing_descriptions.length > 0 
-    ? req.existing_descriptions.map(d => `- ${d}`).join('\n') 
-    : 'None provided';
-
-  // Platform-specific instructions
-  let taskDescription = '';
-  let outputFormat = '';
-  
-  switch (platform) {
-    case 'meta':
-      taskDescription = `Create:
-- ${req.num_descriptions} Primary Texts (each ≤ 125 characters)
-- ${req.num_headlines} Headlines (each ≤ 27 characters)`;
-      
-      outputFormat = `{
-  "primaryTexts": [
-    "Primary text 1 (≤125 chars)",
-    "Primary text 2 (≤125 chars)",
-    "... up to ${req.num_descriptions}"
-  ],
-  "headlines": [
-    "H1 (≤27 chars)",
-    "H2 (≤27 chars)",
-    "... up to ${req.num_headlines}"
-  ]
-}`;
-      break;
-      
-    case 'x':
-      taskDescription = `Create:
-- ${req.num_descriptions} Tweet texts (each ≤ 280 characters)
-- ${req.num_headlines} Short headlines (each ≤ 70 characters)`;
-      
-      outputFormat = `{
-  "tweets": [
-    "Tweet 1 (≤280 chars)",
-    "Tweet 2 (≤280 chars)",
-    "... up to ${req.num_descriptions}"
-  ],
-  "headlines": [
-    "H1 (≤70 chars)",
-    "H2 (≤70 chars)",
-    "... up to ${req.num_headlines}"
-  ]
-}`;
-      break;
-      
-    case 'tiktok':
-      taskDescription = `Create:
-- ${req.num_headlines} TikTok ad captions (each ≤ 100 characters)`;
-      
-      outputFormat = `{
-  "adTexts": [
-    "Caption 1 (≤100 chars)",
-    "Caption 2 (≤100 chars)",
-    "... up to ${req.num_headlines}"
-  ]
-}`;
-      break;
-      
-    default: // 'google'
-      taskDescription = `Create:
-- ${req.num_headlines} Google Ads RSA headlines (each ≤ 30 characters)
-- ${req.num_descriptions} Google Ads RSA descriptions (each ≤ 90 characters)`;
-      
-      outputFormat = `{
-  "headlines": [
-    "H1 (≤30 chars)",
-    "H2 (≤30 chars)",
-    "... up to ${req.num_headlines}"
-  ],
-  "descriptions": [
-    "D1 (≤90 chars)",
-    "D2 (≤90 chars)",
-    "... up to ${req.num_descriptions}"
-  ]
-}`;
-  }
-
-  return `CONTEXT
-------
-Brand/Campaign Notes:
-${req.context || 'General business promotion'}
-
-Existing Headlines (for reference):
-${existingHeadlinesText}
-
-Existing Descriptions (for reference):
-${existingDescriptionsText}
-
-Keywords & Search Queries (raw):
-${req.keywords_raw || 'None provided'}
-
-Locale: ${req.locale || 'en-GB'}
-
-TASK
-----
-${taskDescription}
-
-REQUIREMENTS
-------------
-1) **Character limits are hard caps**: Follow the exact character limits specified above. Do not exceed.
-2) **Coverage & Variety**: Provide a balanced mix across intent buckets. Include at least some lines that emphasise:
-   - Core benefit/value (e.g., save money/time, quality, reliability)
-   - Specific features/USPs from the context
-   - Social proof or credibility (ratings, awards, scale)
-   - Offer/price/promo (if in context)
-   - Urgency/scarcity when appropriate (no fake claims)
-   - Clear CTA variants (e.g., "Get Quote", "Compare Now")
-3) **Keyword use**: Naturally include relevant head terms from the supplied keywords/search queries where they fit. Avoid awkward stuffing.
-4) **Compliance & Safety**: Avoid prohibited claims, exaggerated superlatives, or medical/financial guarantees unless explicitly allowed. No emojis.
-5) **Uniqueness**: No duplicates or near-duplicates; each line must deliver a distinct angle.
-6) **Grammar & Casing**: Concise sentence or Title Case; avoid ALL CAPS & multiple exclamation marks.
-
-OUTPUT FORMAT (JSON ONLY)
--------------------------
-${outputFormat}
-
-QUALITY CHECK (self-verify before answering)
---------------------------------------------
-- Arrays match requested counts.
-- No item exceeds the char limits.
-- No duplicates/near-duplicates.
-- At least some items include key head terms naturally.`;
+// Platform registry
+const PLATFORMS: Record<string, PlatformHandler> = {
+  google: GooglePlatform,
+  meta: MetaPlatform,
+  x: XPlatform,
+  tiktok: TikTokPlatform,
 };
 
-// Get platform-specific response schema for Gemini
-const getResponseSchema = (platform: string) => {
-  switch (platform) {
-    case 'meta':
-      return {
-        type: "OBJECT",
-        properties: {
-          primaryTexts: { type: "ARRAY", items: { type: "STRING" }, minItems: 1, maxItems: 30 },
-          headlines: { type: "ARRAY", items: { type: "STRING" }, minItems: 1, maxItems: 30 }
-        },
-        required: ["primaryTexts", "headlines"]
-      };
-    case 'x':
-      return {
-        type: "OBJECT",
-        properties: {
-          tweets: { type: "ARRAY", items: { type: "STRING" }, minItems: 1, maxItems: 30 },
-          headlines: { type: "ARRAY", items: { type: "STRING" }, minItems: 1, maxItems: 30 }
-        },
-        required: ["tweets", "headlines"]
-      };
-    case 'tiktok':
-      return {
-        type: "OBJECT",
-        properties: {
-          adTexts: { type: "ARRAY", items: { type: "STRING" }, minItems: 1, maxItems: 30 }
-        },
-        required: ["adTexts"]
-      };
-    default: // 'google'
-      return {
-        type: "OBJECT",
-        properties: {
-          headlines: { type: "ARRAY", items: { type: "STRING" }, minItems: 1, maxItems: 30 },
-          descriptions: { type: "ARRAY", items: { type: "STRING" }, minItems: 1, maxItems: 30 }
-        },
-        required: ["headlines", "descriptions"]
-      };
-  }
-};
-
-// Convert to OpenAI's JSON Schema format for structured outputs
-const getOpenAIResponseSchema = (platform: string) => {
-  switch (platform) {
-    case 'meta':
-      return {
-        type: "object",
-        properties: {
-          primaryTexts: {
-            type: "array",
-            items: { type: "string" },
-            minItems: 1,
-            maxItems: 30
-          },
-          headlines: {
-            type: "array",
-            items: { type: "string" },
-            minItems: 1,
-            maxItems: 30
-          }
-        },
-        required: ["primaryTexts", "headlines"],
-        additionalProperties: false
-      };
-      
-    case 'x':
-      return {
-        type: "object",
-        properties: {
-          tweets: {
-            type: "array",
-            items: { type: "string" },
-            minItems: 1,
-            maxItems: 30
-          },
-          headlines: {
-            type: "array",
-            items: { type: "string" },
-            minItems: 1,
-            maxItems: 30
-          }
-        },
-        required: ["tweets", "headlines"],
-        additionalProperties: false
-      };
-      
-    case 'tiktok':
-      return {
-        type: "object",
-        properties: {
-          adTexts: {
-            type: "array",
-            items: { type: "string" },
-            minItems: 1,
-            maxItems: 30
-          }
-        },
-        required: ["adTexts"],
-        additionalProperties: false
-      };
-      
-    default: // 'google'
-      return {
-        type: "object",
-        properties: {
-          headlines: {
-            type: "array",
-            items: { type: "string" },
-            minItems: 1,
-            maxItems: 30
-          },
-          descriptions: {
-            type: "array",
-            items: { type: "string" },
-            minItems: 1,
-            maxItems: 30
-          }
-        },
-        required: ["headlines", "descriptions"],
-        additionalProperties: false
-      };
-  }
-};
-
-// Pre-processing helpers
-const preprocess = (rawReq: any): RequestShape => {
-  const trimLines = (arr: string[]) => (arr || []).map(s => s.trim()).filter(Boolean);
-  const dedupe = (arr: string[]) => Array.from(new Set(arr));
-  const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
-
-  // Convert old format to new format
-  const existing_headlines = rawReq.existingHeadlines 
-    ? rawReq.existingHeadlines.split('\n')
+// Convert incoming request to GenerateRequest format
+const mapRequestBody = (rawReq: any): GenerateRequest => {
+  // Handle both old format (strings) and new format (arrays)
+  const existingHeadlines = rawReq.existingHeadlines
+    ? rawReq.existingHeadlines.split('\n').map((s: string) => s.trim()).filter(Boolean)
     : (rawReq.existing_headlines || []);
   
-  const existing_descriptions = rawReq.existingDescriptions 
-    ? rawReq.existingDescriptions.split('\n')
+  const existingDescriptions = rawReq.existingDescriptions
+    ? rawReq.existingDescriptions.split('\n').map((s: string) => s.trim()).filter(Boolean)
     : (rawReq.existing_descriptions || []);
-
+  
+  // Parse keywords
+  const keywordsRaw = rawReq.keywords || rawReq.keywords_raw || '';
+  const keywords = typeof keywordsRaw === 'string'
+    ? keywordsRaw.split(/[,\n]/).map((k: string) => k.trim()).filter(Boolean)
+    : (keywordsRaw || []);
+  
+  // Clamp values
+  const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+  
+  const platform = rawReq.platform || 'google';
+  const model = rawReq.model || 'google/gemini-2.5-flash';
+  const provider = model.includes('gemini') ? 'gemini' : 'openai';
+  
   return {
-    platform: rawReq.platform || 'google',
-    provider: rawReq.model?.includes('gemini') ? 'google' : 'openai',
-    model: rawReq.model || 'google/gemini-2.5-flash',
-    existing_headlines: dedupe(trimLines(existing_headlines)),
-    existing_descriptions: dedupe(trimLines(existing_descriptions)),
-    keywords_raw: rawReq.keywords || rawReq.keywords_raw || '',
-    context: rawReq.context || '',
-    num_headlines: clamp(rawReq.numHeadlines || rawReq.num_headlines || 10, 1, 30),
-    num_descriptions: clamp(rawReq.numDescriptions || rawReq.num_descriptions || 4, 1, 30),
+    platform,
+    provider,
+    model,
     locale: rawReq.locale || 'en-GB',
-    ...rawReq
-  };
-};
-
-// Simple similarity function for deduplication
-const similarity = (a: string, b: string): number => {
-  const setA = new Set(a.toLowerCase().split(''));
-  const setB = new Set(b.toLowerCase().split(''));
-  const intersection = [...setA].filter(x => setB.has(x)).length;
-  return intersection / Math.max(setA.size, setB.size);
-};
-
-// Post-processing helpers
-const postprocess = (data: any, cleaned: RequestShape) => {
-  const enforce = (items: string[], maxChars: number, need: number) => {
-    const softTrim = (s: string) => {
-      if (s.length <= maxChars) return s;
-      const slice = s.slice(0, maxChars);
-      const lastSpace = slice.lastIndexOf(' ');
-      return (lastSpace > 10 ? slice.slice(0, lastSpace) : slice).trim();
-    };
-    
-    const unique: string[] = [];
-    for (const s of items || []) {
-      const t = softTrim(String(s || "").trim());
-      if (!t) continue;
-      if (!unique.some(u => similarity(u, t) > 0.92)) {
-        unique.push(t);
-      }
-    }
-    return unique.slice(0, need);
-  };
-
-  const platform = cleaned.platform || 'google';
-  
-  // Platform-specific processing
-  switch (platform) {
-    case 'meta':
-      const primaryTexts = enforce(data?.primaryTexts || [], 125, cleaned.num_descriptions);
-      const metaHeadlines = enforce(data?.headlines || [], 27, cleaned.num_headlines);
-      return { primaryTexts, headlines: metaHeadlines };
-      
-    case 'x':
-      const tweets = enforce(data?.tweets || [], 280, cleaned.num_descriptions);
-      const xHeadlines = enforce(data?.headlines || [], 70, cleaned.num_headlines);
-      return { tweets, headlines: xHeadlines };
-      
-    case 'tiktok':
-      const adTexts = enforce(data?.adTexts || [], 100, cleaned.num_headlines);
-      return { adTexts };
-      
-    default: // 'google'
-      let headlines = enforce(data?.headlines || [], 30, cleaned.num_headlines);
-      let descriptions = enforce(data?.descriptions || [], 90, cleaned.num_descriptions);
-      
-      // Pad if short with basic fallbacks
-      const pad = (arr: string[], need: number, prefix: string) => {
-        while (arr.length < need) {
-          arr.push(`${prefix} ${arr.length + 1}`);
-        }
-        return arr;
-      };
-      
-      headlines = pad(headlines, cleaned.num_headlines, "Headline");
-      descriptions = pad(descriptions, cleaned.num_descriptions, "Description");
-      
-      // Locale normalisation for en-GB
-      if ((cleaned.locale || '').toLowerCase() === 'en-gb') {
-        const gbSpelling = (s: string) => s.replace(/optimi(ze|zing|zation)/gi, m => m.replace('z', 's'));
-        headlines = headlines.map(gbSpelling);
-        descriptions = descriptions.map(gbSpelling);
-      }
-      
-      return { headlines, descriptions };
-  }
-};
-
-const safeJsonParse = (s: string) => {
-  try { 
-    return JSON.parse(s); 
-  } catch { 
-    return {}; 
-  }
-};
-
-// OpenAI API call with improved prompt structure and model-specific parameter handling
-const generateWithOpenAI = async (req: RequestShape) => {
-  const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-  if (!openAIApiKey) {
-    throw new Error('OpenAI API key not configured');
-  }
-
-  const userPrompt = buildUserPrompt(req);
-  console.log('OpenAI Model:', req.model);
-  console.log('User prompt length:', userPrompt.length);
-
-  // Detect if this is a GPT-5, GPT-4.5, GPT-4.1+ model (newer models)
-  const isGPT5Family = req.model.includes('gpt-5');
-  const isGPT4Point5Plus = req.model.includes('gpt-4.5') || req.model.includes('gpt-4.1');
-  const isNewerModel = isGPT5Family || isGPT4Point5Plus;
-
-  // Build request body with model-specific parameters
-  const requestBody: any = {
-    model: req.model,
-    messages: [
-      {
-        role: 'system',
-        content: getPlatformPrompt(req.platform || 'google')
-      },
-      {
-        role: 'user',
-        content: userPrompt
-      }
-    ],
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "ad_copy_response",
-        strict: true,
-        schema: getOpenAIResponseSchema(req.platform || 'google')
-      }
-    }
-  };
-
-  // GPT-5 and newer models use max_completion_tokens and do NOT support temperature
-  if (isNewerModel) {
-    requestBody.max_completion_tokens = 2000;
-    console.log('Using max_completion_tokens for newer model (no temperature)');
-  } else {
-    // Legacy models (gpt-4o, gpt-4o-mini) use max_tokens and support temperature
-    requestBody.max_tokens = 2000;
-    requestBody.temperature = 0.8;
-    console.log('Using max_tokens and temperature for legacy model');
-  }
-
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openAIApiKey}`,
-      'Content-Type': 'application/json',
+    temperature: rawReq.temperature || 0.8,
+    productContext: rawReq.context || '',
+    keywords,
+    existingAssets: {
+      headlines: existingHeadlines,
+      descriptions: existingDescriptions,
     },
-    body: JSON.stringify(requestBody),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    console.error('OpenAI API error:', error);
-    
-    // Enhanced error messages for model-specific issues
-    if (error.includes('temperature') && isNewerModel) {
-      throw new Error(`${req.model} does not support temperature parameter. This is a configuration error.`);
-    }
-    if (error.includes('max_tokens') && isNewerModel) {
-      throw new Error(`${req.model} requires max_completion_tokens instead of max_tokens. This is a configuration error.`);
-    }
-    
-    throw new Error(`OpenAI API error: ${response.status} - ${error}`);
-  }
-
-  const data = await response.json();
-  const rawContent = data.choices?.[0]?.message?.content ?? "{}";
-  console.log('OpenAI raw response preview:', rawContent.substring(0, 200));
-  
-  return safeJsonParse(rawContent);
-};
-
-// Gemini API call with improved prompt structure
-const generateWithGemini = async (req: RequestShape) => {
-  const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
-  if (!geminiApiKey) {
-    throw new Error('Gemini API key not configured');
-  }
-
-  const userPrompt = buildUserPrompt(req);
-  console.log('Gemini Model:', req.model);
-  console.log('User prompt length:', userPrompt.length);
-
-  // Strip 'google/' prefix if present for Gemini API
-  const geminiModelName = req.model.replace('google/', '');
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModelName}:generateContent?key=${geminiApiKey}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+    limits: {
+      headlines: clamp(rawReq.numHeadlines || rawReq.num_headlines || 10, 1, 30),
+      descriptions: clamp(rawReq.numDescriptions || rawReq.num_descriptions || 4, 1, 30),
+      primaryTexts: clamp(rawReq.numDescriptions || rawReq.num_descriptions || 10, 1, 30),
     },
-    body: JSON.stringify({
-      contents: [{
-        parts: [{
-          text: `${getPlatformPrompt(req.platform || 'google')}\n\n${userPrompt}`
-        }]
-      }],
-      generationConfig: {
-        temperature: 0.8,
-        maxOutputTokens: 2000,
-        responseMimeType: "application/json",
-        responseSchema: getResponseSchema(req.platform || 'google')
-      }
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    console.error('Gemini API error:', error);
-    throw new Error(`Gemini API error: ${response.status} - ${error}`);
-  }
-
-  const data = await response.json();
-  const rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
-  console.log('Gemini raw response:', rawContent);
-  
-  return safeJsonParse(rawContent);
+  };
 };
 
 // Start alert monitoring (runs every 5 minutes)
@@ -616,24 +172,24 @@ serve(async (req) => {
       );
     }
 
-    // Parse and validate request body with new preprocessing
+    // Parse and map request to GenerateRequest format
     const rawRequestBody = await req.json();
     userLogger.debug('Raw request received', { bodyKeys: Object.keys(rawRequestBody) });
     
-    // Preprocess request to unified format
-    const cleanedRequest = preprocess(rawRequestBody);
-    userLogger.info('Request preprocessed', { 
-      provider: cleanedRequest.provider, 
-      model: cleanedRequest.model,
-      numHeadlines: cleanedRequest.num_headlines,
-      numDescriptions: cleanedRequest.num_descriptions,
+    const generateRequest = mapRequestBody(rawRequestBody);
+    userLogger.info('Request mapped', { 
+      platform: generateRequest.platform,
+      provider: generateRequest.provider, 
+      model: generateRequest.model,
     });
 
     // Input validation
-    if (cleanedRequest.num_headlines > 30 || cleanedRequest.num_descriptions > 30) {
+    const maxHeadlines = generateRequest.limits?.headlines || 0;
+    const maxDescriptions = generateRequest.limits?.descriptions || 0;
+    if (maxHeadlines > 30 || maxDescriptions > 30) {
       userLogger.warn('Request validation failed: too many items', { 
-        headlines: cleanedRequest.num_headlines, 
-        descriptions: cleanedRequest.num_descriptions 
+        headlines: maxHeadlines, 
+        descriptions: maxDescriptions 
       });
       return new Response(JSON.stringify({ error: 'Too many items requested (max 30 each)' }), {
         status: 400,
@@ -641,35 +197,66 @@ serve(async (req) => {
       });
     }
 
+    // Get platform handler (default to Google if not found)
+    const platform = PLATFORMS[generateRequest.platform] || GooglePlatform;
+    
+    // Build prompts using platform module
+    const systemPrompt = platform.systemPrompt;
+    const userPrompt = platform.buildUserPrompt(generateRequest);
+
     const apiStartTime = Date.now();
     userLogger.info('Starting AI generation', { 
-      provider: cleanedRequest.provider, 
-      model: cleanedRequest.model 
+      platform: generateRequest.platform,
+      provider: generateRequest.provider, 
+      model: generateRequest.model 
     });
     
     // Use request queue to manage concurrent operations and circuit breaker for resilience
     const rawGeneratedData = await requestQueue.enqueue(user.id, async () => {
-      // Generate with appropriate provider using circuit breaker
-      if (cleanedRequest.provider === 'google') {
-        return await circuitBreaker.execute('gemini', () => generateWithGemini(cleanedRequest));
-      } else {
-        return await circuitBreaker.execute('openai', () => generateWithOpenAI(cleanedRequest));
+      const apiKey = generateRequest.provider === 'gemini'
+        ? Deno.env.get('GEMINI_API_KEY')!
+        : Deno.env.get('OPENAI_API_KEY')!;
+      
+      if (!apiKey) {
+        throw new Error(`${generateRequest.provider} API key not configured`);
       }
+      
+      // Select appropriate model client
+      const callModelFn = generateRequest.provider === 'gemini'
+        ? () => callGeminiJSON({
+            apiKey,
+            model: generateRequest.model,
+            systemPrompt,
+            userPrompt,
+            jsonSchema: platform.geminiSchema,
+            temperature: generateRequest.temperature,
+          })
+        : () => callOpenAIJSON({
+            apiKey,
+            model: generateRequest.model,
+            systemPrompt,
+            userPrompt,
+            jsonSchema: platform.openAISchema,
+            temperature: generateRequest.temperature,
+          });
+      
+      // Execute with circuit breaker
+      return await circuitBreaker.execute(generateRequest.provider, callModelFn);
     });
 
     const apiDuration = Date.now() - apiStartTime;
     userLogger.info('AI generation completed', { durationMs: apiDuration });
 
     // Update circuit breaker metrics
-    const circuitStatus = circuitBreaker.getStatus(cleanedRequest.provider === 'google' ? 'gemini' : 'openai');
+    const circuitStatus = circuitBreaker.getStatus(generateRequest.provider);
     metricsCollector.updateProviderMetrics(
-      cleanedRequest.provider === 'google' ? 'gemini' : 'openai',
+      generateRequest.provider,
       circuitStatus.state,
       circuitStatus.failures
     );
 
-    // Post-process the generated content
-    const processedResult = postprocess(rawGeneratedData, cleanedRequest);
+    // Post-process the generated content using platform module
+    const processedResult = platform.postprocess(rawGeneratedData, generateRequest);
 
     // Platform-aware logging
     const logFields = Object.keys(processedResult).filter(k => Array.isArray(processedResult[k]));
@@ -689,9 +276,9 @@ serve(async (req) => {
     return new Response(JSON.stringify({
       ...processedResult,
       usage: {
-        provider: cleanedRequest.provider,
-        model: cleanedRequest.model,
-        locale: cleanedRequest.locale,
+        provider: generateRequest.provider,
+        model: generateRequest.model,
+        locale: generateRequest.locale,
         timestamp: new Date().toISOString(),
         userId: user.id
       }
