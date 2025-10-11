@@ -18,6 +18,7 @@ const corsHeaders = {
 interface RequestShape {
   provider: "openai" | "google";
   model: string;
+  platform?: string;
   existing_headlines: string[];
   existing_descriptions: string[];
   keywords_raw: string;
@@ -28,8 +29,9 @@ interface RequestShape {
 }
 
 
-// User prompt template
+// User prompt template - Platform-aware
 const buildUserPrompt = (req: RequestShape) => {
+  const platform = req.platform || 'google';
   const existingHeadlinesText = req.existing_headlines.length > 0 
     ? req.existing_headlines.map(h => `- ${h}`).join('\n') 
     : 'None provided';
@@ -37,6 +39,81 @@ const buildUserPrompt = (req: RequestShape) => {
   const existingDescriptionsText = req.existing_descriptions.length > 0 
     ? req.existing_descriptions.map(d => `- ${d}`).join('\n') 
     : 'None provided';
+
+  // Platform-specific instructions
+  let taskDescription = '';
+  let outputFormat = '';
+  
+  switch (platform) {
+    case 'meta':
+      taskDescription = `Create:
+- ${req.num_descriptions} Primary Texts (each ≤ 125 characters)
+- ${req.num_headlines} Headlines (each ≤ 27 characters)`;
+      
+      outputFormat = `{
+  "primaryTexts": [
+    "Primary text 1 (≤125 chars)",
+    "Primary text 2 (≤125 chars)",
+    "... up to ${req.num_descriptions}"
+  ],
+  "headlines": [
+    "H1 (≤27 chars)",
+    "H2 (≤27 chars)",
+    "... up to ${req.num_headlines}"
+  ]
+}`;
+      break;
+      
+    case 'x':
+      taskDescription = `Create:
+- ${req.num_descriptions} Tweet texts (each ≤ 280 characters)
+- ${req.num_headlines} Short headlines (each ≤ 70 characters)`;
+      
+      outputFormat = `{
+  "tweets": [
+    "Tweet 1 (≤280 chars)",
+    "Tweet 2 (≤280 chars)",
+    "... up to ${req.num_descriptions}"
+  ],
+  "headlines": [
+    "H1 (≤70 chars)",
+    "H2 (≤70 chars)",
+    "... up to ${req.num_headlines}"
+  ]
+}`;
+      break;
+      
+    case 'tiktok':
+      taskDescription = `Create:
+- ${req.num_headlines} TikTok ad captions (each ≤ 100 characters)`;
+      
+      outputFormat = `{
+  "adTexts": [
+    "Caption 1 (≤100 chars)",
+    "Caption 2 (≤100 chars)",
+    "... up to ${req.num_headlines}"
+  ]
+}`;
+      break;
+      
+    default: // 'google'
+      taskDescription = `Create:
+- ${req.num_headlines} Google Ads RSA headlines (each ≤ 30 characters)
+- ${req.num_descriptions} Google Ads RSA descriptions (each ≤ 90 characters)`;
+      
+      outputFormat = `{
+  "headlines": [
+    "H1 (≤30 chars)",
+    "H2 (≤30 chars)",
+    "... up to ${req.num_headlines}"
+  ],
+  "descriptions": [
+    "D1 (≤90 chars)",
+    "D2 (≤90 chars)",
+    "... up to ${req.num_descriptions}"
+  ]
+}`;
+  }
 
   return `CONTEXT
 ------
@@ -56,13 +133,11 @@ Locale: ${req.locale || 'en-GB'}
 
 TASK
 ----
-Create:
-- ${req.num_headlines} Google Ads RSA headlines (each ≤ 30 characters)
-- ${req.num_descriptions} Google Ads RSA descriptions (each ≤ 90 characters)
+${taskDescription}
 
 REQUIREMENTS
 ------------
-1) **Character limits are hard caps**: headlines ≤ 30; descriptions ≤ 90. Do not exceed.
+1) **Character limits are hard caps**: Follow the exact character limits specified above. Do not exceed.
 2) **Coverage & Variety**: Provide a balanced mix across intent buckets. Include at least some lines that emphasise:
    - Core benefit/value (e.g., save money/time, quality, reliability)
    - Specific features/USPs from the context
@@ -77,18 +152,7 @@ REQUIREMENTS
 
 OUTPUT FORMAT (JSON ONLY)
 -------------------------
-{
-  "headlines": [
-    "H1 (≤30 chars)",
-    "H2 (≤30 chars)",
-    "... up to ${req.num_headlines}"
-  ],
-  "descriptions": [
-    "D1 (≤90 chars)",
-    "D2 (≤90 chars)",
-    "... up to ${req.num_descriptions}"
-  ]
-}
+${outputFormat}
 
 QUALITY CHECK (self-verify before answering)
 --------------------------------------------
@@ -135,6 +199,89 @@ const getResponseSchema = (platform: string) => {
           descriptions: { type: "ARRAY", items: { type: "STRING" }, minItems: 1, maxItems: 30 }
         },
         required: ["headlines", "descriptions"]
+      };
+  }
+};
+
+// Convert to OpenAI's JSON Schema format for structured outputs
+const getOpenAIResponseSchema = (platform: string) => {
+  switch (platform) {
+    case 'meta':
+      return {
+        type: "object",
+        properties: {
+          primaryTexts: {
+            type: "array",
+            items: { type: "string" },
+            minItems: 1,
+            maxItems: 30
+          },
+          headlines: {
+            type: "array",
+            items: { type: "string" },
+            minItems: 1,
+            maxItems: 30
+          }
+        },
+        required: ["primaryTexts", "headlines"],
+        additionalProperties: false
+      };
+      
+    case 'x':
+      return {
+        type: "object",
+        properties: {
+          tweets: {
+            type: "array",
+            items: { type: "string" },
+            minItems: 1,
+            maxItems: 30
+          },
+          headlines: {
+            type: "array",
+            items: { type: "string" },
+            minItems: 1,
+            maxItems: 30
+          }
+        },
+        required: ["tweets", "headlines"],
+        additionalProperties: false
+      };
+      
+    case 'tiktok':
+      return {
+        type: "object",
+        properties: {
+          adTexts: {
+            type: "array",
+            items: { type: "string" },
+            minItems: 1,
+            maxItems: 30
+          }
+        },
+        required: ["adTexts"],
+        additionalProperties: false
+      };
+      
+    default: // 'google'
+      return {
+        type: "object",
+        properties: {
+          headlines: {
+            type: "array",
+            items: { type: "string" },
+            minItems: 1,
+            maxItems: 30
+          },
+          descriptions: {
+            type: "array",
+            items: { type: "string" },
+            minItems: 1,
+            maxItems: 30
+          }
+        },
+        required: ["headlines", "descriptions"],
+        additionalProperties: false
       };
   }
 };
@@ -279,7 +426,14 @@ const generateWithOpenAI = async (req: RequestShape) => {
         content: userPrompt
       }
     ],
-    response_format: { type: "json_object" }
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "ad_copy_response",
+        strict: true,
+        schema: getOpenAIResponseSchema(req.platform || 'google')
+      }
+    }
   };
 
   // GPT-5 and newer models use max_completion_tokens and do NOT support temperature
