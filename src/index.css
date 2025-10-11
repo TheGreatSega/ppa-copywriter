@@ -38,20 +38,21 @@ All colors MUST be HSL.
 
     --radius: 0.5rem;
 
+    /* Custom homepage colors */
+    --hero-blue: 227 100% 50%;
+    --light-blue-bg: 227 100% 98%;
+    --mint-green-bg: 154 93% 79%;
+    --light-green-bg: 145 82% 94%;
+    --dark-card: 219 28% 10%;
+    --emerald: 154 70% 60%;
+
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
