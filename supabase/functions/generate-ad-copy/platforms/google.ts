@@ -40,13 +40,10 @@ Ensure JSON is valid: { "headlines": [...], "descriptions": [...] }`,
   buildUserPrompt(req: GenerateRequest): string {
     const wantHeadlines = req.limits?.headlines ?? 15;
     const wantDescriptions = req.limits?.descriptions ?? 4;
-    
+
     const context = buildContextSection(req.productContext);
     const keywords = formatKeywords(req.keywords);
-    const existingAssets = formatExistingAssets(
-      req.existingAssets?.headlines,
-      req.existingAssets?.descriptions
-    );
+    const existingAssets = formatExistingAssets(req.existingAssets?.headlines, req.existingAssets?.descriptions);
 
     return `CONTEXT
 ------
@@ -56,7 +53,7 @@ ${context}${existingAssets}
 Keywords & Search Queries (raw):
 ${keywords}
 
-Locale: ${req.locale || 'en-GB'}
+Locale: ${req.locale || "en-GB"}
 
 TASK
 ----
@@ -66,18 +63,18 @@ Create:
 
 REQUIREMENTS
 ------------
-1) **Character limits are hard caps**: Follow the exact character limits specified above. Do not exceed.
-2) **Coverage & Variety**: Provide a balanced mix across intent buckets. Include at least some lines that emphasise:
+1) Character limits are hard caps: Follow the exact character limits specified above. Do not exceed.
+2) Coverage & Variety: Provide a balanced mix across intent buckets. Include at least some lines that emphasise:
    - Core benefit/value (e.g., save money/time, quality, reliability)
    - Specific features/USPs from the context
    - Social proof or credibility (ratings, awards, scale)
    - Offer/price/promo (if in context)
    - Urgency/scarcity when appropriate (no fake claims)
    - Clear CTA variants (e.g., "Get Quote", "Compare Now")
-3) **Keyword use**: Naturally include relevant head terms from the supplied keywords/search queries where they fit. Avoid awkward stuffing.
-4) **Compliance & Safety**: Avoid prohibited claims, exaggerated superlatives, or medical/financial guarantees unless explicitly allowed. No emojis.
-5) **Uniqueness**: No duplicates or near-duplicates; each line must deliver a distinct angle.
-6) **Grammar & Casing**: Concise sentence or Title Case; avoid ALL CAPS & multiple exclamation marks.
+3) Keyword use: Naturally include relevant head terms from the supplied keywords/search queries where they fit. Avoid awkward stuffing.
+4) Compliance & Safety: Avoid prohibited claims, exaggerated superlatives, or medical/financial guarantees unless explicitly allowed. No emojis.
+5) Uniqueness: No duplicates or near-duplicates; each line must deliver a distinct angle.
+6) Grammar & Casing: Concise sentence or Title Case; avoid ALL CAPS & multiple exclamation marks.
 
 OUTPUT FORMAT (JSON ONLY)
 -------------------------
