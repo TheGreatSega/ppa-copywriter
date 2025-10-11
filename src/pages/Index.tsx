@@ -240,21 +240,152 @@ const Index = () => {
             <div className="flex flex-col p-4 gap-3">
               <Accordion type="single" collapsible className="w-full">
                 <AccordionItem value="item-1">
-                  <AccordionTrigger>How does the AI work?</AccordionTrigger>
+                  <AccordionTrigger>What is Adcopyai?</AccordionTrigger>
                   <AccordionContent>
-                    Our AI uses advanced natural language processing and machine learning algorithms to generate high-performing ad copy based on your inputs and target audience.
+                    Adcopyai is a professional AI ad copy generator that creates high-converting advertising copy in seconds. It's built by performance marketers for performance marketers who want quick, easy and highly engaging headlines and descriptions fast without staring at a blank page. AI helps accelerate ideation and production so you can focus on strategy and optimization.
                   </AccordionContent>
                 </AccordionItem>
+                
                 <AccordionItem value="item-2">
-                  <AccordionTrigger>What integrations are available?</AccordionTrigger>
+                  <AccordionTrigger>Who is Adcopyai for?</AccordionTrigger>
                   <AccordionContent>
-                    We integrate with Google Ads, Facebook Ads, and other major advertising platforms to streamline your workflow.
+                    Adcopyai is designed for performance marketers, freelancers, and marketing agency staff who need to reduce copywriting workload while maintaining quality. It's ideal for lean teams that need professional ad copy quickly to support always-on campaigns and fast test-and-learn cycles.
                   </AccordionContent>
                 </AccordionItem>
+                
                 <AccordionItem value="item-3">
-                  <AccordionTrigger>What is the refund policy?</AccordionTrigger>
+                  <AccordionTrigger>What can Adcopyai be used for?</AccordionTrigger>
                   <AccordionContent>
-                    We offer a 30-day money-back guarantee. If you're not satisfied with our service, contact support for a full refund.
+                    <p className="mb-2">Use Adcopyai to generate:</p>
+                    <ul className="list-disc pl-5 space-y-1">
+                      <li>Google Ads headlines and descriptions (and variations for testing)</li>
+                      <li>Meta/Facebook & Instagram ad copy</li>
+                      <li>TikTok Captions</li>
+                      <li>X posts (Promoted Tweets)</li>
+                      <li>More on the way</li>
+                    </ul>
+                  </AccordionContent>
+                </AccordionItem>
+                
+                <AccordionItem value="item-4">
+                  <AccordionTrigger>How does Adcopyai work?</AccordionTrigger>
+                  <AccordionContent>
+                    <ol className="list-decimal pl-5 space-y-2">
+                      <li><strong>Input your context:</strong> Historic ad copy, target audience, keywords/search queries, and any must-include messages.</li>
+                      <li><strong>Choose a leading AI model:</strong> Select from the latest models to fit your speed/quality needs.</li>
+                      <li><strong>Generate fast:</strong> Adcopyai uses refined prompts and patterns learned from multiple high-performing ads to produce optimized variations.</li>
+                      <li><strong>Edit inline & download:</strong> Tweak directly in the UI, then download results for immediate use in your ad platform.</li>
+                    </ol>
+                  </AccordionContent>
+                </AccordionItem>
+                
+                <AccordionItem value="item-5">
+                  <AccordionTrigger>How is Adcopyai different from other AI copywriting tools?</AccordionTrigger>
+                  <AccordionContent>
+                    <ul className="list-disc pl-5 space-y-1">
+                      <li><strong>Performance focus:</strong> Built specifically for ads and short-form posts, not generic long-form content.</li>
+                      <li><strong>Speed + simplicity:</strong> Clean UI, inline editing, and instant downloads reduce friction from idea to launch.</li>
+                      <li><strong>Model choice:</strong> Access to leading AI models ensures you can prioritize either speed or depth on demand.</li>
+                      <li><strong>Purpose-built prompts:</strong> Trained on patterns from high-performing ads to push for clarity, benefits, and action.</li>
+                    </ul>
+                  </AccordionContent>
+                </AccordionItem>
+                
+                <AccordionItem value="item-6">
+                  <AccordionTrigger>Will Adcopyai help my ads perform better?</AccordionTrigger>
+                  <AccordionContent>
+                    Adcopyai is designed to support best-practice ad structures (e.g., clear value props, social proof, urgency) and classic copy frameworks like AIDA and PAS, which many marketers use to drive engagement and conversions. Use the tool to generate multiple angles, then A/B test in-platform for proven lifts. (No tool can guarantee performance; testing is essential.)
+                  </AccordionContent>
+                </AccordionItem>
+                
+                <AccordionItem value="item-7">
+                  <AccordionTrigger>How fast is it?</AccordionTrigger>
+                  <AccordionContent>
+                    Most users can create a full set of ad variations in seconds to minutes, dramatically faster than manual drafting. Agencies and marketers commonly cite AI copy tools for reducing production time and helping overcome writer's block during ideation.
+                  </AccordionContent>
+                </AccordionItem>
+                
+                <AccordionItem value="item-8">
+                  <AccordionTrigger>Can I edit copy directly in the interface?</AccordionTrigger>
+                  <AccordionContent>
+                    Yes. Adcopyai provides inline editing so you can polish tone, add brand terms, or localize for different audiences without switching tools. This keeps the workflow tight and saves time from brief to ready-to-ship copy.
+                  </AccordionContent>
+                </AccordionItem>
+                
+                <AccordionItem value="item-9">
+                  <AccordionTrigger>Does Adcopyai respect ad platform character limits?</AccordionTrigger>
+                  <AccordionContent>
+                    Yes, Adcopyai is built to help you stay within platform guidelines for all platforms (Google Ads, Meta, TikTok and X (Twitter)).
+                  </AccordionContent>
+                </AccordionItem>
+                
+                <AccordionItem value="item-10">
+                  <AccordionTrigger>Can I download the results?</AccordionTrigger>
+                  <AccordionContent>
+                    Yes, export your approved variations for quick upload to your ad platforms or share with stakeholders for review.
+                  </AccordionContent>
+                </AccordionItem>
+                
+                <AccordionItem value="item-11">
+                  <AccordionTrigger>Can I customize tone and style?</AccordionTrigger>
+                  <AccordionContent>
+                    Yes, choose or describe your desired tone of voice (e.g., professional, friendly, bold, direct-response) and Adcopyai will tailor outputs. You can also include brand guidelines and must-use phrases to keep copy on-brand.
+                  </AccordionContent>
+                </AccordionItem>
+                
+                <AccordionItem value="item-12">
+                  <AccordionTrigger>Which ad platforms and channels does it support?</AccordionTrigger>
+                  <AccordionContent>
+                    AdCopyAI supports Google Ads, Meta (Facebook and Instagram), X and TikTok.
+                  </AccordionContent>
+                </AccordionItem>
+                
+                <AccordionItem value="item-13">
+                  <AccordionTrigger>What AI models can I choose from?</AccordionTrigger>
+                  <AccordionContent>
+                    You can select from OpenAI GPT and Gemini models.
+                  </AccordionContent>
+                </AccordionItem>
+                
+                <AccordionItem value="item-14">
+                  <AccordionTrigger>Why was Adcopyai created?</AccordionTrigger>
+                  <AccordionContent>
+                    Because ad copywriting is time-consuming and writer's block is real, yet there are higher-value activities in campaign management (audience strategy, offers, landing page CRO, analytics). Adcopyai was built by performance marketers to save time, eliminate blank-page anxiety, and free you to focus on the right levers for performance.
+                  </AccordionContent>
+                </AccordionItem>
+                
+                <AccordionItem value="item-15">
+                  <AccordionTrigger>Is Adcopyai suitable for freelancers and small teams?</AccordionTrigger>
+                  <AccordionContent>
+                    Yes. The product is intentionally lightweight and fast, making it perfect for solo marketers and small teams who need production-ready copy without adding process overhead.
+                  </AccordionContent>
+                </AccordionItem>
+                
+                <AccordionItem value="item-16">
+                  <AccordionTrigger>What's the pricing?</AccordionTrigger>
+                  <AccordionContent>
+                    Simple, transparent pricing: £4.99 per month or £49.99 per year. Running modern AI models incurs token costs, so we keep pricing straightforward and accessible for pros.
+                  </AccordionContent>
+                </AccordionItem>
+                
+                <AccordionItem value="item-17">
+                  <AccordionTrigger>Does it help with testing and iteration?</AccordionTrigger>
+                  <AccordionContent>
+                    Yes. Generate multiple angles (benefit-led, offer-led, urgency-led, social-proof-led), then run A/B tests in your ad platform.
+                  </AccordionContent>
+                </AccordionItem>
+                
+                <AccordionItem value="item-18">
+                  <AccordionTrigger>Will Adcopyai replace copywriters?</AccordionTrigger>
+                  <AccordionContent>
+                    No. Think of Adcopyai as your creative accelerator, great for brainstorming, first drafts, and high-volume variations. Human judgment still wins for brand nuance, compliance, and offer strategy. This hybrid approach is how many teams use AI today to speed up without sacrificing quality.
+                  </AccordionContent>
+                </AccordionItem>
+                
+                <AccordionItem value="item-19">
+                  <AccordionTrigger>How do I get started?</AccordionTrigger>
+                  <AccordionContent>
+                    Sign up, paste your campaign/product context (audience, offer, keywords/search queries), select your tone, choose your AI model, and click Generate. Edit inline, download, and start testing.
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
