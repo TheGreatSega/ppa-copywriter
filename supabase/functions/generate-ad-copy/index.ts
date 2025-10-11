@@ -98,6 +98,47 @@ QUALITY CHECK (self-verify before answering)
 - At least some items include key head terms naturally.`;
 };
 
+// Get platform-specific response schema for Gemini
+const getResponseSchema = (platform: string) => {
+  switch (platform) {
+    case 'meta':
+      return {
+        type: "OBJECT",
+        properties: {
+          primaryTexts: { type: "ARRAY", items: { type: "STRING" }, minItems: 1, maxItems: 30 },
+          headlines: { type: "ARRAY", items: { type: "STRING" }, minItems: 1, maxItems: 30 }
+        },
+        required: ["primaryTexts", "headlines"]
+      };
+    case 'x':
+      return {
+        type: "OBJECT",
+        properties: {
+          tweets: { type: "ARRAY", items: { type: "STRING" }, minItems: 1, maxItems: 30 },
+          headlines: { type: "ARRAY", items: { type: "STRING" }, minItems: 1, maxItems: 30 }
+        },
+        required: ["tweets", "headlines"]
+      };
+    case 'tiktok':
+      return {
+        type: "OBJECT",
+        properties: {
+          adTexts: { type: "ARRAY", items: { type: "STRING" }, minItems: 1, maxItems: 30 }
+        },
+        required: ["adTexts"]
+      };
+    default: // 'google'
+      return {
+        type: "OBJECT",
+        properties: {
+          headlines: { type: "ARRAY", items: { type: "STRING" }, minItems: 1, maxItems: 30 },
+          descriptions: { type: "ARRAY", items: { type: "STRING" }, minItems: 1, maxItems: 30 }
+        },
+        required: ["headlines", "descriptions"]
+      };
+  }
+};
+
 // Pre-processing helpers
 const preprocess = (rawReq: any): RequestShape => {
   const trimLines = (arr: string[]) => (arr || []).map(s => s.trim()).filter(Boolean);
@@ -157,28 +198,48 @@ const postprocess = (data: any, cleaned: RequestShape) => {
     return unique.slice(0, need);
   };
 
-  let headlines = enforce(data?.headlines || [], 30, cleaned.num_headlines);
-  let descriptions = enforce(data?.descriptions || [], 90, cleaned.num_descriptions);
-
-  // Pad if short with basic fallbacks
-  const pad = (arr: string[], need: number, prefix: string) => {
-    while (arr.length < need) {
-      arr.push(`${prefix} ${arr.length + 1}`);
-    }
-    return arr;
-  };
-
-  headlines = pad(headlines, cleaned.num_headlines, "Headline");
-  descriptions = pad(descriptions, cleaned.num_descriptions, "Description");
-
-  // Locale normalisation for en-GB
-  if ((cleaned.locale || '').toLowerCase() === 'en-gb') {
-    const gbSpelling = (s: string) => s.replace(/optimi(ze|zing|zation)/gi, m => m.replace('z', 's'));
-    headlines = headlines.map(gbSpelling);
-    descriptions = descriptions.map(gbSpelling);
+  const platform = cleaned.platform || 'google';
+  
+  // Platform-specific processing
+  switch (platform) {
+    case 'meta':
+      const primaryTexts = enforce(data?.primaryTexts || [], 125, cleaned.num_descriptions);
+      const metaHeadlines = enforce(data?.headlines || [], 27, cleaned.num_headlines);
+      return { primaryTexts, headlines: metaHeadlines };
+      
+    case 'x':
+      const tweets = enforce(data?.tweets || [], 280, cleaned.num_descriptions);
+      const xHeadlines = enforce(data?.headlines || [], 70, cleaned.num_headlines);
+      return { tweets, headlines: xHeadlines };
+      
+    case 'tiktok':
+      const adTexts = enforce(data?.adTexts || [], 100, cleaned.num_headlines);
+      return { adTexts };
+      
+    default: // 'google'
+      let headlines = enforce(data?.headlines || [], 30, cleaned.num_headlines);
+      let descriptions = enforce(data?.descriptions || [], 90, cleaned.num_descriptions);
+      
+      // Pad if short with basic fallbacks
+      const pad = (arr: string[], need: number, prefix: string) => {
+        while (arr.length < need) {
+          arr.push(`${prefix} ${arr.length + 1}`);
+        }
+        return arr;
+      };
+      
+      headlines = pad(headlines, cleaned.num_headlines, "Headline");
+      descriptions = pad(descriptions, cleaned.num_descriptions, "Description");
+      
+      // Locale normalisation for en-GB
+      if ((cleaned.locale || '').toLowerCase() === 'en-gb') {
+        const gbSpelling = (s: string) => s.replace(/optimi(ze|zing|zation)/gi, m => m.replace('z', 's'));
+        headlines = headlines.map(gbSpelling);
+        descriptions = descriptions.map(gbSpelling);
+      }
+      
+      return { headlines, descriptions };
   }
-
-  return { headlines, descriptions };
 };
 
 const safeJsonParse = (s: string) => {
@@ -291,24 +352,7 @@ const generateWithGemini = async (req: RequestShape) => {
         temperature: 0.8,
         maxOutputTokens: 2000,
         responseMimeType: "application/json",
-        responseSchema: {
-          type: "OBJECT",
-          properties: {
-            headlines: { 
-              type: "ARRAY", 
-              items: { type: "STRING" },
-              minItems: 1,
-              maxItems: 30
-            },
-            descriptions: { 
-              type: "ARRAY", 
-              items: { type: "STRING" },
-              minItems: 1,
-              maxItems: 30
-            }
-          },
-          required: ["headlines", "descriptions"]
-        }
+        responseSchema: getResponseSchema(req.platform || 'google')
       }
     }),
   });
@@ -473,10 +517,14 @@ serve(async (req) => {
     // Post-process the generated content
     const processedResult = postprocess(rawGeneratedData, cleanedRequest);
 
-    userLogger.info('Response generated successfully', { 
-      headlines: processedResult.headlines.length, 
-      descriptions: processedResult.descriptions.length 
-    });
+    // Platform-aware logging
+    const logFields = Object.keys(processedResult).filter(k => Array.isArray(processedResult[k]));
+    const logCounts = logFields.reduce((acc, field) => {
+      acc[field] = processedResult[field].length;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    userLogger.info('Response generated successfully', logCounts);
 
     // Record metrics
     const totalDuration = Date.now() - startTime;
@@ -485,8 +533,7 @@ serve(async (req) => {
     userLogger.info('Request completed successfully', { totalDurationMs: totalDuration });
 
     return new Response(JSON.stringify({
-      headlines: processedResult.headlines,
-      descriptions: processedResult.descriptions,
+      ...processedResult,
       usage: {
         provider: cleanedRequest.provider,
         model: cleanedRequest.model,
