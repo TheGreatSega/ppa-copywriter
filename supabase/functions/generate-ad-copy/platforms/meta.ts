@@ -86,8 +86,7 @@ CONSTRUCTION CHECKS (before output):
 1) Every primary text ≤125 chars; every headline ≤27 chars.
 2) Hook is front-loaded; one idea per sentence; remove filler.
 3) If inputs include target audience, offer, USP, or proof, weave them naturally within limits.
-4) Ensure JSON is valid: { "primaryTexts": [...], "headlines": [...] }`
-
+4) Ensure JSON is valid: { "primaryTexts": [...], "headlines": [...] }`,
 
   buildUserPrompt(req: GenerateRequest): string {
     const wantPrimaryTexts = req.limits?.primaryTexts ?? 10;
