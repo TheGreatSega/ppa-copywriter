@@ -1,7 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
-import { SYSTEM_PROMPT } from "./prompt.ts";
+import { getPlatformPrompt } from "./platform-prompts.ts";
 import { rateLimiter, ipRateLimiter } from "./rate-limiter.ts";
 import { circuitBreaker } from "./circuit-breaker.ts";
 import { requestQueue } from "./queue.ts";
@@ -282,7 +282,7 @@ const generateWithGemini = async (req: RequestShape) => {
     body: JSON.stringify({
       contents: [{
         parts: [{
-          text: `${SYSTEM_PROMPT}\n\n${userPrompt}`
+          text: `${getPlatformPrompt(req.platform || 'google')}\n\n${userPrompt}`
         }]
       }],
       generationConfig: {
