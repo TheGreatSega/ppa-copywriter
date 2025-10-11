@@ -39,7 +39,7 @@ function AppSidebar() {
             <SidebarMenu>
               {platforms.map((platform) => (
                 <SidebarMenuItem key={platform.title}>
-                  <SidebarMenuButton asChild>
+                  <SidebarMenuButton asChild size="sm" className="!p-1 group-data-[collapsible=icon]:justify-center">
                     <NavLink
                       to={platform.url}
                       className={({ isActive }) =>
@@ -49,7 +49,7 @@ function AppSidebar() {
                       <img 
                         src={platform.iconUrl} 
                         alt={platform.title}
-                        className={`${open ? "h-6 w-6" : "h-5 w-5"} object-cover flex-shrink-0 rounded`}
+                        className="size-5 group-data-[collapsible=icon]:size-4 object-contain shrink-0 rounded"
                       />
                       {open && <span>{platform.title}</span>}
                     </NavLink>
