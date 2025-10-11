@@ -10,6 +10,7 @@ export interface GenerateRequest {
   model: string;
   locale?: string;
   temperature?: number;
+  placement?: string;
   
   // Input content
   productContext?: string;

@@ -66,6 +66,7 @@ const mapRequestBody = (rawReq: any): GenerateRequest => {
     model,
     locale: rawReq.locale || 'en-GB',
     temperature: rawReq.temperature || 0.8,
+    placement: rawReq.placement,
     productContext: rawReq.context || '',
     keywords,
     existingAssets: {
