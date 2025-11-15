@@ -282,20 +282,10 @@ export default function GoogleAdsDashboard() {
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
-                        <SelectLabel>Google Gemini (Free)</SelectLabel>
-                        <SelectItem value="google/gemini-2.5-flash">Gemini 2.5 Flash - Balanced & Fast</SelectItem>
-                        <SelectItem value="google/gemini-2.5-pro">Gemini 2.5 Pro - Most Capable</SelectItem>
-                      </SelectGroup>
-                      <SelectGroup>
-                        <SelectLabel>GPT-5 Series</SelectLabel>
-                        <SelectItem value="gpt-5-2025-08-07">GPT-5 - Most Capable</SelectItem>
-                        <SelectItem value="gpt-5-mini-2025-08-07">GPT-5 Mini - Fast & Efficient</SelectItem>
-                        <SelectItem value="gpt-5-nano-2025-08-07">GPT-5 Nano - Fastest</SelectItem>
-                      </SelectGroup>
-                      <SelectGroup>
-                        <SelectLabel>GPT-4 Series</SelectLabel>
-                        <SelectItem value="gpt-4.5-2025-05-16">GPT-4.5 - Advanced Reasoning</SelectItem>
-                        <SelectItem value="gpt-4.1-2025-04-14">GPT-4.1 - Reliable</SelectItem>
+                        <SelectLabel>Available Models</SelectLabel>
+                        <SelectItem value="google/gemini-2.5-flash">Gemini Flash 2.5</SelectItem>
+                        <SelectItem value="gpt-4.5-2025-05-16">GPT 4.5</SelectItem>
+                        <SelectItem value="gpt-5-2025-08-07">GPT 5</SelectItem>
                       </SelectGroup>
                     </SelectContent>
                   </Select>

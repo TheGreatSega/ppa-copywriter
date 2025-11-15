@@ -17,6 +17,7 @@ export async function callOpenAIJSON({
 }): Promise<any> {
   const isGPT5OrHigher =
     model.includes("gpt-5") ||
+    model.includes("gpt-4.5") ||
     model.includes("gpt-4.1") ||
     model.includes("o1") ||
     model.includes("o3");
