@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Download, Copy, RefreshCw, Trash2 } from "lucide-react";
 import { ChipCounter } from "@/components/shared/ChipCounter";
 import { RowActions } from "@/components/shared/RowActions";
-import { downloadCSV, downloadXLSX } from "@/lib/exportUtils";
+import { downloadXLSX } from "@/lib/exportUtils";
 
 const MAX_TWEET = 280;
 const MAX_HEADLINE = 70;
@@ -107,13 +107,6 @@ export default function XDashboard() {
     toast({ title: "Copied!", description: "All results copied to clipboard." });
   };
 
-  const downloadCombinedCSV = () => {
-    const rows = [
-      ...tweets.map((t) => ({ type: "tweet", text: t, chars: t.length, within: t.length <= MAX_TWEET })),
-      ...headlines.map((h) => ({ type: "headline", text: h, chars: h.length, within: h.length <= MAX_HEADLINE })),
-    ];
-    downloadCSV(rows, `x_ads_${new Date().toISOString().slice(0, 10)}.csv`);
-  };
 
   const downloadWorkbook = () => {
     downloadXLSX([
@@ -146,9 +139,6 @@ export default function XDashboard() {
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={copyAll}>
               <Copy className="mr-2 h-4 w-4" /> Copy All
-            </Button>
-            <Button variant="outline" size="sm" onClick={downloadCombinedCSV}>
-              <Download className="mr-2 h-4 w-4" /> CSV
             </Button>
             <Button size="sm" onClick={downloadWorkbook}>
               <Download className="mr-2 h-4 w-4" /> Excel
