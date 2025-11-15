@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Outlet, NavLink } from "react-router-dom";
+import { Outlet, NavLink, useLocation } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
@@ -65,6 +65,11 @@ function AppSidebar() {
 }
 
 export default function PlatformLayout() {
+  const location = useLocation();
+  
+  const currentPlatform = platforms.find(p => location.pathname.includes(p.url));
+  const platformIcon = currentPlatform?.iconUrl || "/icons/google-ads.png";
+  
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
@@ -72,7 +77,11 @@ export default function PlatformLayout() {
         <main className="flex-1 overflow-x-hidden">
           <div className="sticky top-0 z-30 backdrop-blur supports-[backdrop-filter]:bg-background/70 bg-background/80 border-b">
             <div className="px-4 py-3 flex items-center gap-3">
-              <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500" />
+              <img 
+                src={platformIcon} 
+                alt="Platform logo" 
+                className="h-8 w-8 rounded-xl object-contain"
+              />
               <div>
                 <h1 className="text-lg font-semibold leading-tight">AI Ad Copy Generator</h1>
                 <p className="text-xs text-muted-foreground">Multi-platform ad copy generation powered by AI</p>
