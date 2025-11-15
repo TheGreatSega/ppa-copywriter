@@ -28,7 +28,7 @@ import { Separator } from "@/components/ui/separator";
 import { Download, Copy, RefreshCw, Trash2, Check } from "lucide-react";
 import { ChipCounter } from "@/components/shared/ChipCounter";
 import { RowActions } from "@/components/shared/RowActions";
-import { downloadCSV, downloadXLSX, softClamp } from "@/lib/exportUtils";
+import { downloadXLSX, softClamp } from "@/lib/exportUtils";
 
 const MAX_HEADLINE = 30;
 const MAX_DESCRIPTION = 90;
@@ -132,23 +132,6 @@ export default function GoogleAdsDashboard() {
     toast({ title: "Copied!", description: "All results copied to clipboard." });
   };
 
-  const downloadCombinedCSV = () => {
-    const rows = [
-      ...headlines.map((h) => ({
-        type: "headline",
-        text: h,
-        chars: h.length,
-        within: h.length <= MAX_HEADLINE,
-      })),
-      ...descriptions.map((d) => ({
-        type: "description",
-        text: d,
-        chars: d.length,
-        within: d.length <= MAX_DESCRIPTION,
-      })),
-    ];
-    downloadCSV(rows, `google_ads_${new Date().toISOString().slice(0, 10)}.csv`);
-  };
 
   const downloadWorkbook = () => {
     downloadXLSX([
@@ -182,9 +165,6 @@ export default function GoogleAdsDashboard() {
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={copyAll}>
               <Copy className="mr-2 h-4 w-4" /> Copy All
-            </Button>
-            <Button variant="outline" size="sm" onClick={downloadCombinedCSV}>
-              <Download className="mr-2 h-4 w-4" /> CSV
             </Button>
             <Button size="sm" onClick={downloadWorkbook}>
               <Download className="mr-2 h-4 w-4" /> Excel
