@@ -190,6 +190,18 @@ export default function MetaDashboard() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
+                  <Label htmlFor="objective">Campaign Objective</Label>
+                  <Select value={objective} onValueChange={setObjective}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="awareness">Awareness</SelectItem>
+                      <SelectItem value="consideration">Consideration</SelectItem>
+                      <SelectItem value="conversions">Conversions</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="existingPrimaryText">Existing Primary Text</Label>
                   <Textarea
                     id="existingPrimaryText"
@@ -220,18 +232,6 @@ export default function MetaDashboard() {
                     value={audience}
                     onChange={(e) => setAudience(e.target.value)}
                   />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="objective">Campaign Objective</Label>
-                  <Select value={objective} onValueChange={setObjective}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="awareness">Awareness</SelectItem>
-                      <SelectItem value="consideration">Consideration</SelectItem>
-                      <SelectItem value="conversions">Conversions</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
 
                 <div className="space-y-2">
