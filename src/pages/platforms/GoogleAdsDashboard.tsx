@@ -237,7 +237,7 @@ export default function GoogleAdsDashboard() {
                   <Select value={String(numHeadlines)} onValueChange={(v) => setNumHeadlines(Number(v))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {[3, 5, 8, 10, 12, 15].map((n) => (
+                      {[5, 10, 15, 20, 25, 30].map((n) => (
                         <SelectItem key={n} value={String(n)}>{n}</SelectItem>
                       ))}
                     </SelectContent>
@@ -249,7 +249,7 @@ export default function GoogleAdsDashboard() {
                   <Select value={String(numDescriptions)} onValueChange={(v) => setNumDescriptions(Number(v))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {[2, 3, 4, 6, 8, 10].map((n) => (
+                      {[2, 4, 6, 8, 10].map((n) => (
                         <SelectItem key={n} value={String(n)}>{n}</SelectItem>
                       ))}
                     </SelectContent>
