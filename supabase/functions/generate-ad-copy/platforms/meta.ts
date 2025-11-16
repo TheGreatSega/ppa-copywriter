@@ -4,41 +4,9 @@ import type { GenerateRequest, GenerateResult, PlatformHandler } from "../types.
 import { sanitizeList } from "../utils/sanitize.ts";
 import { formatKeywords, buildContextSection } from "../utils/format.ts";
 
-// Placement-specific character limits for Meta Ads
-export const META_PLACEMENTS = {
-  'feed-general': {
-    label: 'Facebook & Instagram Feed (General)',
-    primaryText: 125,
-    headline: 40,
-  },
-  'facebook-image': {
-    label: 'Facebook Image (Feed)',
-    primaryText: 150,
-    headline: 27,
-  },
-  'facebook-video': {
-    label: 'Facebook Video (Feed)',
-    primaryText: 80,
-    headline: 27,
-  },
-  'facebook-reels': {
-    label: 'Facebook Reels',
-    primaryText: 40,
-    headline: 55,
-  },
-  'facebook-carousel': {
-    label: 'Facebook Carousel (Feed)',
-    primaryText: 80,
-    headline: 45,
-  },
-  'instagram-feed': {
-    label: 'Instagram Feed',
-    primaryText: 125,
-    headline: 40,
-  }
-} as const;
-
-export type MetaPlacement = keyof typeof META_PLACEMENTS;
+// Standard Meta character limits for multi-placement ads
+const MAX_PRIMARY_TEXT = 125;
+const MAX_HEADLINE = 40;
 
 const AWARENESS_PROMPT = `You are an expert Meta brand strategist and copywriter. Your task is to generate modular, high-performance ad copy components designed to introduce a brand to a new audience.
 
@@ -149,15 +117,6 @@ export const MetaPlatform: PlatformHandler = {
     const wantPrimaryTexts = req.limits?.primaryTexts ?? 10;
     const wantHeadlines = req.limits?.headlines ?? 5;
     
-    // Get placement-specific limits or fallback to defaults
-    const placement = req.placement as MetaPlacement | undefined;
-    const placementConfig = placement && META_PLACEMENTS[placement] 
-      ? META_PLACEMENTS[placement] 
-      : META_PLACEMENTS['feed-general'];
-    
-    const primaryTextLimit = placementConfig.primaryText;
-    const headlineLimit = placementConfig.headline;
-    
     // Select system prompt based on campaign objective
     const objective = req.campaignObjective?.toLowerCase() || 'conversions';
     let selectedPrompt = CONVERSIONS_PROMPT;
@@ -182,23 +141,22 @@ Inspiration - Primary Text: ${existingPrimaryTexts}
 Inspiration - Headlines: ${existingHeadlines}
 Number of Variants to Generate: ${wantPrimaryTexts} Primary Texts, ${wantHeadlines} Headlines
 
-PLACEMENT: ${placementConfig.label}
 Locale: ${req.locale || 'en-GB'}
 
 CHARACTER LIMITS (CRITICAL):
-- Primary Text: ≤${primaryTextLimit} characters
-- Headlines: ≤${headlineLimit} characters
+- Primary Text: ≤${MAX_PRIMARY_TEXT} characters
+- Headlines: ≤${MAX_HEADLINE} characters
 
 These character limits are HARD CAPS and must NEVER be exceeded.
 
 OUTPUT FORMAT (JSON ONLY):
 {
   "primaryTexts": [
-    "Primary text 1 (≤${primaryTextLimit} chars)",
+    "Primary text 1 (≤${MAX_PRIMARY_TEXT} chars)",
     "... up to ${wantPrimaryTexts} total"
   ],
   "headlines": [
-    "Headline 1 (≤${headlineLimit} chars)",
+    "Headline 1 (≤${MAX_HEADLINE} chars)",
     "... up to ${wantHeadlines} total"
   ]
 }`;
@@ -247,20 +205,14 @@ OUTPUT FORMAT (JSON ONLY):
     const wantPrimaryTexts = req.limits?.primaryTexts ?? 10;
     const wantHeadlines = req.limits?.headlines ?? 5;
 
-    // Get placement-specific limits or fallback to defaults
-    const placement = req.placement as MetaPlacement | undefined;
-    const placementConfig = placement && META_PLACEMENTS[placement] 
-      ? META_PLACEMENTS[placement] 
-      : META_PLACEMENTS['feed-general'];
-
     const primaryTexts = sanitizeList(raw?.primaryTexts, {
-      maxChars: placementConfig.primaryText,
+      maxChars: MAX_PRIMARY_TEXT,
       maxItems: wantPrimaryTexts,
       locale: req.locale,
     });
 
     const headlines = sanitizeList(raw?.headlines, {
-      maxChars: placementConfig.headline,
+      maxChars: MAX_HEADLINE,
       maxItems: wantHeadlines,
       locale: req.locale,
     });
