@@ -11,6 +11,7 @@ export interface GenerateRequest {
   locale?: string;
   temperature?: number;
   placement?: string;
+  campaignObjective?: string;
   
   // Input content
   productContext?: string;
