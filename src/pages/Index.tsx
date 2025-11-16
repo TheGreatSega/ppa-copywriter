@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, Check, Sparkles, Zap, HelpCircle } from "lucide-react";
+import { ArrowRight, Check, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -303,7 +303,7 @@ const Index = () => {
       </section>
 
       {/* FAQ */}
-      <section id="faq" className="w-full bg-[hsl(var(--mint-green-bg))]">
+      <section id="faq" className="w-full">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
           <div className="mb-10 text-center">
             <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">FAQ</h2>
@@ -313,7 +313,7 @@ const Index = () => {
           <Accordion type="single" collapsible className="w-full">
             <AccordionItem value="item-1">
               <AccordionTrigger className="text-left text-lg">
-                <div className="flex items-center gap-2"><HelpCircle className="h-5 w-5 text-orange-500"/>What is Adcopyai?</div>
+                What is Adcopyai?
               </AccordionTrigger>
               <AccordionContent>
                 Adcopyai is a professional AI ad copy generator that creates high-converting advertising copy in seconds. It's built by performance marketers for performance marketers who want quick, easy and highly engaging headlines and descriptions fast without staring at a blank page. AI helps accelerate ideation and production so you can focus on strategy and optimization.
@@ -322,7 +322,7 @@ const Index = () => {
             
             <AccordionItem value="item-2">
               <AccordionTrigger className="text-left text-lg">
-                <div className="flex items-center gap-2"><HelpCircle className="h-5 w-5 text-orange-500"/>Who is Adcopyai for?</div>
+                Who is Adcopyai for?
               </AccordionTrigger>
               <AccordionContent>
                 Adcopyai is designed for performance marketers, freelancers, and marketing agency staff who need to reduce copywriting workload while maintaining quality. It's ideal for lean teams that need professional ad copy quickly to support always-on campaigns and fast test-and-learn cycles.
@@ -331,7 +331,7 @@ const Index = () => {
             
             <AccordionItem value="item-3">
               <AccordionTrigger className="text-left text-lg">
-                <div className="flex items-center gap-2"><HelpCircle className="h-5 w-5 text-orange-500"/>What can Adcopyai be used for?</div>
+                What can Adcopyai be used for?
               </AccordionTrigger>
               <AccordionContent>
                 <p className="mb-2">Use Adcopyai to generate:</p>
@@ -347,7 +347,7 @@ const Index = () => {
             
             <AccordionItem value="item-4">
               <AccordionTrigger className="text-left text-lg">
-                <div className="flex items-center gap-2"><HelpCircle className="h-5 w-5 text-orange-500"/>How does Adcopyai work?</div>
+                How does Adcopyai work?
               </AccordionTrigger>
               <AccordionContent>
                 <ol className="list-decimal pl-5 space-y-2">
@@ -361,7 +361,7 @@ const Index = () => {
             
             <AccordionItem value="item-5">
               <AccordionTrigger className="text-left text-lg">
-                <div className="flex items-center gap-2"><HelpCircle className="h-5 w-5 text-orange-500"/>How is Adcopyai different from other AI copywriting tools?</div>
+                How is Adcopyai different from other AI copywriting tools?
               </AccordionTrigger>
               <AccordionContent>
                 <ul className="list-disc pl-5 space-y-1">
@@ -375,7 +375,7 @@ const Index = () => {
             
             <AccordionItem value="item-6">
               <AccordionTrigger className="text-left text-lg">
-                <div className="flex items-center gap-2"><HelpCircle className="h-5 w-5 text-orange-500"/>Will Adcopyai help my ads perform better?</div>
+                Will Adcopyai help my ads perform better?
               </AccordionTrigger>
               <AccordionContent>
                 Adcopyai is designed to support best-practice ad structures (e.g., clear value props, social proof, urgency) and classic copy frameworks like AIDA and PAS, which many marketers use to drive engagement and conversions. Use the tool to generate multiple angles, then A/B test in-platform for proven lifts. (No tool can guarantee performance; testing is essential.)
@@ -384,7 +384,7 @@ const Index = () => {
             
             <AccordionItem value="item-7">
               <AccordionTrigger className="text-left text-lg">
-                <div className="flex items-center gap-2"><HelpCircle className="h-5 w-5 text-orange-500"/>How fast is it?</div>
+                How fast is it?
               </AccordionTrigger>
               <AccordionContent>
                 Most users can create a full set of ad variations in seconds to minutes, dramatically faster than manual drafting. Agencies and marketers commonly cite AI copy tools for reducing production time and helping overcome writer's block during ideation.
@@ -393,7 +393,7 @@ const Index = () => {
             
             <AccordionItem value="item-8">
               <AccordionTrigger className="text-left text-lg">
-                <div className="flex items-center gap-2"><HelpCircle className="h-5 w-5 text-orange-500"/>Can I edit copy directly in the interface?</div>
+                Can I edit copy directly in the interface?
               </AccordionTrigger>
               <AccordionContent>
                 Yes. Adcopyai provides inline editing so you can polish tone, add brand terms, or localize for different audiences without switching tools. This keeps the workflow tight and saves time from brief to ready-to-ship copy.
@@ -402,7 +402,7 @@ const Index = () => {
             
             <AccordionItem value="item-9">
               <AccordionTrigger className="text-left text-lg">
-                <div className="flex items-center gap-2"><HelpCircle className="h-5 w-5 text-orange-500"/>Does Adcopyai respect ad platform character limits?</div>
+                Does Adcopyai respect ad platform character limits?
               </AccordionTrigger>
               <AccordionContent>
                 Yes, Adcopyai is built to help you stay within platform guidelines for all platforms (Google Ads, Meta, TikTok and X (Twitter)).
@@ -411,7 +411,7 @@ const Index = () => {
             
             <AccordionItem value="item-10">
               <AccordionTrigger className="text-left text-lg">
-                <div className="flex items-center gap-2"><HelpCircle className="h-5 w-5 text-orange-500"/>Can I download the results?</div>
+                Can I download the results?
               </AccordionTrigger>
               <AccordionContent>
                 Yes, export your approved variations for quick upload to your ad platforms or share with stakeholders for review.
@@ -420,7 +420,7 @@ const Index = () => {
             
             <AccordionItem value="item-11">
               <AccordionTrigger className="text-left text-lg">
-                <div className="flex items-center gap-2"><HelpCircle className="h-5 w-5 text-orange-500"/>Can I customize tone and style?</div>
+                Can I customize tone and style?
               </AccordionTrigger>
               <AccordionContent>
                 Yes, choose or describe your desired tone of voice (e.g., professional, friendly, bold, direct-response) and Adcopyai will tailor outputs. You can also include brand guidelines and must-use phrases to keep copy on-brand.
@@ -429,7 +429,7 @@ const Index = () => {
             
             <AccordionItem value="item-12">
               <AccordionTrigger className="text-left text-lg">
-                <div className="flex items-center gap-2"><HelpCircle className="h-5 w-5 text-orange-500"/>Which ad platforms and channels does it support?</div>
+                Which ad platforms and channels does it support?
               </AccordionTrigger>
               <AccordionContent>
                 AdCopyAI supports Google Ads, Meta (Facebook and Instagram), X and TikTok.
@@ -438,7 +438,7 @@ const Index = () => {
             
             <AccordionItem value="item-13">
               <AccordionTrigger className="text-left text-lg">
-                <div className="flex items-center gap-2"><HelpCircle className="h-5 w-5 text-orange-500"/>What AI models can I choose from?</div>
+                What AI models can I choose from?
               </AccordionTrigger>
               <AccordionContent>
                 You can select from OpenAI GPT and Gemini models.
@@ -447,7 +447,7 @@ const Index = () => {
             
             <AccordionItem value="item-14">
               <AccordionTrigger className="text-left text-lg">
-                <div className="flex items-center gap-2"><HelpCircle className="h-5 w-5 text-orange-500"/>Why was Adcopyai created?</div>
+                Why was Adcopyai created?
               </AccordionTrigger>
               <AccordionContent>
                 Because ad copywriting is time-consuming and writer's block is real, yet there are higher-value activities in campaign management (audience strategy, offers, landing page CRO, analytics). Adcopyai was built by performance marketers to save time, eliminate blank-page anxiety, and free you to focus on the right levers for performance.
@@ -456,7 +456,7 @@ const Index = () => {
             
             <AccordionItem value="item-15">
               <AccordionTrigger className="text-left text-lg">
-                <div className="flex items-center gap-2"><HelpCircle className="h-5 w-5 text-orange-500"/>Is Adcopyai suitable for freelancers and small teams?</div>
+                Is Adcopyai suitable for freelancers and small teams?
               </AccordionTrigger>
               <AccordionContent>
                 Yes. The product is intentionally lightweight and fast, making it perfect for solo marketers and small teams who need production-ready copy without adding process overhead.
@@ -465,7 +465,7 @@ const Index = () => {
             
             <AccordionItem value="item-16">
               <AccordionTrigger className="text-left text-lg">
-                <div className="flex items-center gap-2"><HelpCircle className="h-5 w-5 text-orange-500"/>What's the pricing?</div>
+                What's the pricing?
               </AccordionTrigger>
               <AccordionContent>
                 Simple, transparent pricing: £4.99 per month or £49.99 per year. Running modern AI models incurs token costs, so we keep pricing straightforward and accessible for pros.
@@ -474,7 +474,7 @@ const Index = () => {
             
             <AccordionItem value="item-17">
               <AccordionTrigger className="text-left text-lg">
-                <div className="flex items-center gap-2"><HelpCircle className="h-5 w-5 text-orange-500"/>Does it help with testing and iteration?</div>
+                Does it help with testing and iteration?
               </AccordionTrigger>
               <AccordionContent>
                 Yes. Generate multiple angles (benefit-led, offer-led, urgency-led, social-proof-led), then run A/B tests in your ad platform.
@@ -483,7 +483,7 @@ const Index = () => {
             
             <AccordionItem value="item-18">
               <AccordionTrigger className="text-left text-lg">
-                <div className="flex items-center gap-2"><HelpCircle className="h-5 w-5 text-orange-500"/>Will Adcopyai replace copywriters?</div>
+                Will Adcopyai replace copywriters?
               </AccordionTrigger>
               <AccordionContent>
                 No. Think of Adcopyai as your creative accelerator, great for brainstorming, first drafts, and high-volume variations. Human judgment still wins for brand nuance, compliance, and offer strategy. This hybrid approach is how many teams use AI today to speed up without sacrificing quality.
@@ -492,7 +492,7 @@ const Index = () => {
             
             <AccordionItem value="item-19">
               <AccordionTrigger className="text-left text-lg">
-                <div className="flex items-center gap-2"><HelpCircle className="h-5 w-5 text-orange-500"/>How do I get started?</div>
+                How do I get started?
               </AccordionTrigger>
               <AccordionContent>
                 Sign up, paste your campaign/product context (audience, offer, keywords/search queries), select your tone, choose your AI model, and click Generate. Edit inline, download, and start testing.
