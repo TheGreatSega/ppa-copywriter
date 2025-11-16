@@ -47,6 +47,10 @@ const mapRequestBody = (rawReq: any): GenerateRequest => {
     ? rawReq.existingDescriptions.split('\n').map((s: string) => s.trim()).filter(Boolean)
     : (rawReq.existing_descriptions || []);
   
+  const existingPrimaryText = rawReq.existingPrimaryText
+    ? rawReq.existingPrimaryText.split('\n').map((s: string) => s.trim()).filter(Boolean)
+    : (rawReq.existing_primary_text || []);
+  
   // Parse keywords
   const keywordsRaw = rawReq.keywords || rawReq.keywords_raw || '';
   const keywords = typeof keywordsRaw === 'string'
@@ -67,16 +71,19 @@ const mapRequestBody = (rawReq: any): GenerateRequest => {
     locale: rawReq.locale || 'en-GB',
     temperature: rawReq.temperature || 0.8,
     placement: rawReq.placement,
+    campaignObjective: rawReq.objective,
     productContext: rawReq.context || '',
+    audience: rawReq.audience || '',
     keywords,
     existingAssets: {
       headlines: existingHeadlines,
       descriptions: existingDescriptions,
+      primaryTexts: existingPrimaryText,
     },
     limits: {
       headlines: clamp(rawReq.numHeadlines || rawReq.num_headlines || 10, 1, 30),
       descriptions: clamp(rawReq.numDescriptions || rawReq.num_descriptions || 4, 1, 30),
-      primaryTexts: clamp(rawReq.numDescriptions || rawReq.num_descriptions || 10, 1, 30),
+      primaryTexts: clamp(rawReq.numPrimaryText || rawReq.num_primary_text || 10, 1, 30),
     },
   };
 };
