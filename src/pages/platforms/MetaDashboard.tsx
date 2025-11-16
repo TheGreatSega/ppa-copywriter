@@ -16,38 +16,9 @@ import { ChipCounter } from "@/components/shared/ChipCounter";
 import { RowActions } from "@/components/shared/RowActions";
 import { downloadXLSX } from "@/lib/exportUtils";
 
-const META_PLACEMENTS = {
-  'feed-general': {
-    label: 'Facebook & Instagram Feed (General)',
-    primaryText: 125,
-    headline: 40,
-  },
-  'facebook-image': {
-    label: 'Facebook Image (Feed)',
-    primaryText: 150,
-    headline: 27,
-  },
-  'facebook-video': {
-    label: 'Facebook Video (Feed)',
-    primaryText: 80,
-    headline: 27,
-  },
-  'facebook-reels': {
-    label: 'Facebook Reels',
-    primaryText: 40,
-    headline: 55,
-  },
-  'facebook-carousel': {
-    label: 'Facebook Carousel (Feed)',
-    primaryText: 80,
-    headline: 45,
-  },
-  'instagram-feed': {
-    label: 'Instagram Feed',
-    primaryText: 125,
-    headline: 40,
-  }
-} as const;
+// Standard Meta character limits for multi-placement ads
+const MAX_PRIMARY_TEXT = 125;
+const MAX_HEADLINE = 40;
 
 export default function MetaDashboard() {
   const { user, session } = useAuth();
@@ -58,7 +29,6 @@ export default function MetaDashboard() {
   const [audience, setAudience] = useState("");
   const [objective, setObjective] = useState("conversions");
   const [context, setContext] = useState("");
-  const [placement, setPlacement] = useState<string>("feed-general");
   const [numPrimaryText, setNumPrimaryText] = useState<number>(5);
   const [numHeadlines, setNumHeadlines] = useState<number>(5);
   const [model, setModel] = useState<string>("google/gemini-2.5-flash");
@@ -68,10 +38,6 @@ export default function MetaDashboard() {
   const [activeTab, setActiveTab] = useState<"primary" | "headlines">("primary");
   const [filterSearch, setFilterSearch] = useState("");
   const [filterLength, setFilterLength] = useState<"all" | "within" | "over">("all");
-
-  const currentPlacement = META_PLACEMENTS[placement as keyof typeof META_PLACEMENTS];
-  const MAX_PRIMARY_TEXT = currentPlacement.primaryText;
-  const MAX_HEADLINE = currentPlacement.headline;
 
   const withinSpecStats = useMemo(() => {
     const pOk = primaryTexts.filter((p) => p.length <= MAX_PRIMARY_TEXT).length;
@@ -91,7 +57,6 @@ export default function MetaDashboard() {
       const { data, error } = await supabase.functions.invoke('generate-ad-copy', {
         body: {
           platform: 'meta',
-          placement,
           existingPrimaryText,
           existingHeadlines,
           audience,
@@ -232,23 +197,6 @@ export default function MetaDashboard() {
                     value={audience}
                     onChange={(e) => setAudience(e.target.value)}
                   />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="placement">Ad Placement</Label>
-                  <Select value={placement} onValueChange={setPlacement}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent className="bg-white z-50">
-                      {Object.entries(META_PLACEMENTS).map(([key, config]) => (
-                        <SelectItem key={key} value={key}>
-                          {config.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Primary Text: ≤{currentPlacement.primaryText} chars | Headline: ≤{currentPlacement.headline} chars
-                  </p>
                 </div>
 
                 <div className="space-y-2">

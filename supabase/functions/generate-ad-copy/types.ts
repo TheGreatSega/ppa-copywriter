@@ -10,7 +10,6 @@ export interface GenerateRequest {
   model: string;
   locale?: string;
   temperature?: number;
-  placement?: string;
   campaignObjective?: string;
   
   // Input content
