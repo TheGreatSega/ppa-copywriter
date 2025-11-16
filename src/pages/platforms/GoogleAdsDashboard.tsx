@@ -180,27 +180,25 @@ export default function GoogleAdsDashboard() {
                 <CardTitle className="text-base">Inputs</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="existingHeadlines">Existing Headlines</Label>
-                    <Textarea
-                      id="existingHeadlines"
-                      placeholder="One per line"
-                      className="h-36 resize-vertical"
-                      value={existingHeadlines}
-                      onChange={(e) => setExistingHeadlines(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="existingDescriptions">Existing Descriptions</Label>
-                    <Textarea
-                      id="existingDescriptions"
-                      placeholder="One per line"
-                      className="h-36 resize-vertical"
-                      value={existingDescriptions}
-                      onChange={(e) => setExistingDescriptions(e.target.value)}
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="existingHeadlines">Existing Headlines</Label>
+                  <Textarea
+                    id="existingHeadlines"
+                    placeholder="One per line"
+                    className="h-36 resize-vertical"
+                    value={existingHeadlines}
+                    onChange={(e) => setExistingHeadlines(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="existingDescriptions">Existing Descriptions</Label>
+                  <Textarea
+                    id="existingDescriptions"
+                    placeholder="One per line"
+                    className="h-36 resize-vertical"
+                    value={existingDescriptions}
+                    onChange={(e) => setExistingDescriptions(e.target.value)}
+                  />
                 </div>
 
                 <div className="space-y-2">
